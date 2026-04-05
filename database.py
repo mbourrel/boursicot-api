@@ -1,16 +1,18 @@
 import os
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
-load_dotenv() # Charge le fichier .env en local (ignoré sur Render)
+load_dotenv()
 
-# Récupère l'URL de Render, ou utilise une locale par défaut si on est sur ton PC
+# Récupère l'URL (soit locale pour le dev, soit Render pour le déploiement)
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-# 2. On crée le "moteur" qui va physiquement se connecter à PostgreSQL
+# Si l'URL n'est pas trouvée, on met une sécurité pour éviter le "None"
+if not SQLALCHEMY_DATABASE_URL:
+    SQLALCHEMY_DATABASE_URL = "postgresql://user:password@localhost/dbname"
+
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
-
-# 3. On prépare une "usine à sessions" (chaque fois qu'un utilisateur demandera un graphique, on lui ouvrira une session)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# 4. On prépare le moule pour créer nos futures tables (Company, Prices, etc.)
 Base = declarative_base()
