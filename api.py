@@ -1,42 +1,65 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-import json
-import os
+from sqlalchemy.orm import Session
+from database import SessionLocal, engine
+import models
 
-app = FastAPI()
+# Création des tables au cas où (sécurité)
+models.Base.metadata.create_all(bind=engine)
 
+app = FastAPI(title="Boursicot API")
+
+# --- CONFIGURATION CORS ---
+# Indispensable pour autoriser React (qui tourne sur le port 3000) à discuter avec l'API (port 8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],  # En production, mets "http://localhost:3000"
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# On récupère le dossier actuel de api.py (...\fake_data\bourse)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# --- ROUTE 1 : PRIX ---
-@app.get("/api/prices")
-def get_prices():
-    # historical_prices.json est dans le même dossier
-    file_path = os.path.join(BASE_DIR, "historical_prices.json")
+# --- DÉPENDANCE DE BASE DE DONNÉES ---
+def get_db():
+    db = SessionLocal()
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        return {"error": f"Fichier de prix non trouvé : {str(e)}"}
+        yield db
+    finally:
+        db.close()
 
-# --- ROUTE 2 : FONDAMENTAUX ---
+# --- ROUTES DE L'API ---
+
+@app.get("/")
+def read_root():
+    return {"message": "Bienvenue sur l'API Boursicot Pro !"}
+
 @app.get("/api/fundamentals")
-def get_fundamentals():
-    # SIMPLIFIÉ : fundamentals_seed.json est maintenant dans le même dossier !
-    file_path = os.path.join(BASE_DIR, "fundamentals_seed.json")
+def get_fundamentals(db: Session = Depends(get_db)):
+    """
+    Récupère toutes les entreprises et leurs données fondamentales (JSON inclus).
+    FastAPI convertit automatiquement les objets SQLAlchemy en JSON.
+    """
+    companies = db.query(models.Company).all()
+    return companies
+
+@app.get("/api/prices")
+def get_prices(db: Session = Depends(get_db)):
+    """
+    Récupère l'historique des prix.
+    On traduit 'open_price' en 'open' pour correspondre aux attentes de React.
+    """
+    prices = db.query(models.Price).all()
     
-    try:
-        if not os.path.exists(file_path):
-             return {"error": f"Fichier introuvable. Le backend cherche ici : {file_path}"}
-             
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        return {"error": f"Erreur de lecture : {str(e)}"}
+    # Formatage de la réponse pour correspondre exactement à ce que React attend
+    result = []
+    for p in prices:
+        result.append({
+            "ticker": p.ticker,
+            "date": p.date,
+            "open": p.open_price,   # Traduction ici
+            "high": p.high_price,   # Traduction ici
+            "low": p.low_price,     # Traduction ici
+            "close": p.close_price, # Traduction ici
+            "volume": p.volume
+        })
+    return result
