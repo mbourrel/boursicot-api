@@ -1,10 +1,9 @@
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 
-# 1. On charge les secrets du fichier .env
-load_dotenv()
+load_dotenv() # Charge le fichier .env en local (ignoré sur Render)
+
+# Récupère l'URL de Render, ou utilise une locale par défaut si on est sur ton PC
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 # 2. On crée le "moteur" qui va physiquement se connecter à PostgreSQL
