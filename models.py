@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON
 from database import Base
 
 # --- TABLE DES ENTREPRISES ---
@@ -27,8 +27,9 @@ class Price(Base):
     __tablename__ = "prices"
 
     id = Column(Integer, primary_key=True, index=True)
-    ticker = Column(String, ForeignKey("companies.ticker"))
-    date = Column(Date, index=True)
+    ticker = Column(String, ForeignKey("companies.ticker"), index=True)
+    date = Column(DateTime, index=True)       # <-- MODIFIÉ : DateTime pour conserver les heures
+    interval = Column(String, index=True)     # <-- NOUVEAU : '1h', '1D', '1W'
     open_price = Column(Float)
     high_price = Column(Float)
     low_price = Column(Float)

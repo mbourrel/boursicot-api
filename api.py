@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
@@ -13,7 +13,7 @@ app = FastAPI(title="Boursicot API")
 # Indispensable pour autoriser React (qui tourne sur le port 3000) à discuter avec l'API (port 8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En production, mets "http://localhost:3000"
+    allow_origins=["*"],  # En production, mets "http://localhost:3000" ou l'URL de ton front
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,23 +43,39 @@ def get_fundamentals(db: Session = Depends(get_db)):
     return companies
 
 @app.get("/api/prices")
-def get_prices(db: Session = Depends(get_db)):
+def get_prices(
+    ticker: str = Query(None, description="Filtrer par action (ex: AAPL)"),
+    interval: str = Query("1D", description="Filtrer par intervalle (1h, 1D, 1W)"),
+    db: Session = Depends(get_db)
+):
     """
     Récupère l'historique des prix.
-    On traduit 'open_price' en 'open' pour correspondre aux attentes de React.
+    L'API est désormais optimisée pour ne renvoyer QUE les données demandées par le front.
     """
-    prices = db.query(models.Price).all()
+    # 1. On prépare la requête de base
+    query = db.query(models.Price)
     
-    # Formatage de la réponse pour correspondre exactement à ce que React attend
+    # 2. On applique les filtres dynamiquement
+    if ticker:
+        query = query.filter(models.Price.ticker == ticker)
+    
+    if interval:
+        query = query.filter(models.Price.interval == interval)
+        
+    # 3. On trie chronologiquement (très important pour les graphiques !)
+    prices = query.order_by(models.Price.date.asc()).all()
+    
+    # 4. Formatage de la réponse pour correspondre exactement à ce que React attend
     result = []
     for p in prices:
         result.append({
             "ticker": p.ticker,
             "date": p.date,
-            "open": p.open_price,   # Traduction ici
-            "high": p.high_price,   # Traduction ici
-            "low": p.low_price,     # Traduction ici
-            "close": p.close_price, # Traduction ici
+            "interval": p.interval, # Ajouté pour faciliter le debug côté React
+            "open": p.open_price,
+            "high": p.high_price,
+            "low": p.low_price,
+            "close": p.close_price,
             "volume": p.volume
         })
     return result

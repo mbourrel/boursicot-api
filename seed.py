@@ -1,4 +1,5 @@
 import yfinance as yf
+import pandas as pd
 from database import SessionLocal, engine
 from models import Base, Company, Price
 
@@ -8,10 +9,31 @@ Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 TICKERS = [
-    "MC.PA", "TTE.PA", "OR.PA", "SAN.PA", "AI.PA", "BNP.PA", "CS.PA", 
-    "AIR.PA", "SU.PA", "DG.PA", "ACA.PA", "RMS.PA", "EL.PA", "EN.PA", 
-    "CAP.PA", "LR.PA", "GLE.PA", "VIV.PA", "SGO.PA", "CA.PA",
-    "AAPL", "MSFT", "TSLA"
+    # --- CAC 40 (Composants principaux - Avril 2026) ---
+    "AC.PA", "AI.PA", "AIR.PA", "MT.AS", "CS.PA", "BNP.PA", "EN.PA", "BVI.PA", 
+    "CAP.PA", "CA.PA", "ACA.PA", "BN.PA", "DSY.PA", "EDF.PA", "ENGI.PA", "EL.PA", 
+    "ERF.PA", "ENX.PA", "RMS.PA", "KER.PA", "OR.PA", "LR.PA", "MC.PA", "ML.PA", 
+    "ORA.PA", "RI.PA", "PUB.PA", "RNO.PA", "SAF.PA", "SGO.PA", "SAN.PA", "SU.PA", 
+    "GLE.PA", "STLAP.PA", "STMPA.PA", "HO.PA", "TTE.PA", "URW.PA", "VIE.PA", "DG.PA",
+
+    # --- LES 7 FANTASTIQUES (USA) ---
+    "AAPL",   # Apple
+    "MSFT",   # Microsoft
+    "GOOGL",  # Alphabet (Google)
+    "AMZN",   # Amazon
+    "META",   # Meta (Facebook)
+    "NVDA",   # NVIDIA
+    "TSLA",   # Tesla
+
+    # --- INDICES PERTINENTS (Tickers Yahoo Finance) ---
+    "^FCHI",  # CAC 40 Index
+    "^GSPC",  # S&P 500
+    "^IXIC",  # NASDAQ Composite
+    "^DJI",   # Dow Jones Industrial Average
+    "^STOXX50E", # Euro Stoxx 50
+    "^N225",  # Nikkei 225
+    "^VIX",   # Indice de la peur (Volatilité)
+    "BTC-USD" # Bitcoin (souvent pertinent en corrélation)
 ]
 
 def importer_donnees():
@@ -99,7 +121,7 @@ def importer_donnees():
                 {"name": "Actions Shortées", "val": round(short_pct, 2), "unit": "%", "avg": 2}
             ]
 
-            # --- ENREGISTREMENT ---
+            # --- ENREGISTREMENT DE L'ENTREPRISE ---
             company = db.query(Company).filter(Company.ticker == ticker).first()
             if not company:
                 company = Company(
@@ -126,25 +148,66 @@ def importer_donnees():
             
             db.commit()
 
-            # Historique des prix
-            hist = stock.history(period="1y")
-            for index, row in hist.iterrows():
-                date_val = index.date()
-                existing_price = db.query(Price).filter(Price.ticker == ticker, Price.date == date_val).first()
-                if not existing_price:
-                    new_price = Price(
-                        ticker=ticker,
-                        date=date_val,
-                        open_price=float(row["Open"]),
-                        high_price=float(row["High"]),
-                        low_price=float(row["Low"]),
-                        close_price=float(row["Close"]),
-                        volume=int(row["Volume"])
-                    )
-                    db.add(new_price)
+            # --- HISTORIQUE DES PRIX (MULTI-TIMEFRAMES) ---
+            print(f"    Récupération de l'historique des prix pour {ticker}...")
             
-            db.commit()
-            print(f"   Données de {name} enregistrées avec succès !")
+            # 1. Hebdomadaire (5 ans)
+            df_1w = stock.history(period="5y", interval="1wk")
+            if not df_1w.empty: df_1w['interval'] = '1W'
+
+            # 2. Journalier (1 an)
+            df_1d = stock.history(period="1y", interval="1d")
+            if not df_1d.empty: df_1d['interval'] = '1D'
+
+            # 3. Horaire (1 mois)
+            df_1h = stock.history(period="1mo", interval="1h")
+            if not df_1h.empty: df_1h['interval'] = '1h'
+
+            # Concaténation des trois dataframes
+            dfs = [df for df in [df_1w, df_1d, df_1h] if not df.empty]
+            
+            if dfs:
+                df_final = pd.concat(dfs)
+                
+                # Nettoyage des données pour éviter les plantages API (NaN)
+                df_final = df_final.dropna(subset=['Close', 'Open', 'High', 'Low'])
+                df_final = df_final.fillna(0) 
+                
+                df_final.reset_index(inplace=True)
+                
+                # Selon l'intervalle, yfinance nomme la colonne 'Date' ou 'Datetime'
+                date_col = 'Datetime' if 'Datetime' in df_final.columns else 'Date'
+                
+                # Suppression de la timezone pour éviter les erreurs de format avec SQLAlchemy/Postgres
+                if df_final[date_col].dt.tz is not None:
+                    df_final[date_col] = df_final[date_col].dt.tz_localize(None)
+
+                # Insertion en base de données
+                for index, row in df_final.iterrows():
+                    date_val = row[date_col].to_pydatetime()
+                    
+                    # On vérifie avec la date ET l'intervalle
+                    existing_price = db.query(Price).filter(
+                        Price.ticker == ticker, 
+                        Price.date == date_val,
+                        Price.interval == row['interval']
+                    ).first()
+                    
+                    if not existing_price:
+                        new_price = Price(
+                            ticker=ticker,
+                            date=date_val,
+                            interval=row['interval'],
+                            open_price=float(row["Open"]),
+                            high_price=float(row["High"]),
+                            low_price=float(row["Low"]),
+                            close_price=float(row["Close"]),
+                            volume=int(row["Volume"])
+                        )
+                        db.add(new_price)
+                
+                db.commit()
+            print(f"   ✅ Données de {name} enregistrées avec succès !")
 
         print("Opération terminée ! Ton terminal est prêt.")
 
