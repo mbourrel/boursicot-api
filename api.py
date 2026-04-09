@@ -10,10 +10,10 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Boursicot API")
 
 # --- CONFIGURATION CORS ---
-# Indispensable pour autoriser React (qui tourne sur le port 3000) à discuter avec l'API (port 8000)
+# Indispensable pour autoriser React et Vercel à discuter avec l'API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En production, mets "http://localhost:3000" ou l'URL de ton front
+    allow_origins=["*"],  # Autorise toutes les origines pour le POC (Localhost + Vercel)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,7 +37,6 @@ def read_root():
 def get_fundamentals(db: Session = Depends(get_db)):
     """
     Récupère toutes les entreprises et leurs données fondamentales (JSON inclus).
-    FastAPI convertit automatiquement les objets SQLAlchemy en JSON.
     """
     companies = db.query(models.Company).all()
     return companies
@@ -50,7 +49,6 @@ def get_prices(
 ):
     """
     Récupère l'historique des prix.
-    L'API est désormais optimisée pour ne renvoyer QUE les données demandées par le front.
     """
     # 1. On prépare la requête de base
     query = db.query(models.Price)
@@ -65,13 +63,13 @@ def get_prices(
     # 3. On trie chronologiquement (très important pour les graphiques !)
     prices = query.order_by(models.Price.date.asc()).all()
     
-    # 4. Formatage de la réponse pour correspondre exactement à ce que React attend
+    # 4. Formatage de la réponse
     result = []
     for p in prices:
         result.append({
             "ticker": p.ticker,
             "date": p.date,
-            "interval": p.interval, # Ajouté pour faciliter le debug côté React
+            "interval": p.interval, 
             "open": p.open_price,
             "high": p.high_price,
             "low": p.low_price,

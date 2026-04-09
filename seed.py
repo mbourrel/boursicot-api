@@ -36,12 +36,37 @@ TICKERS = [
     "BTC-USD" # Bitcoin (souvent pertinent en corrélation)
 ]
 
+def clean_dataframe(df, interval_val):
+    """
+    Standardise le dataframe (nom de la date, timezone) AVANT la concaténation
+    pour éviter les conflits d'index entre les historiques journaliers et intraday.
+    """
+    if df.empty:
+        return None
+    
+    df = df.copy()
+    df['interval'] = interval_val
+    df.reset_index(inplace=True)
+    
+    # Harmonisation : On renomme toujours la colonne temps en 'Date'
+    if 'Datetime' in df.columns:
+        df.rename(columns={'Datetime': 'Date'}, inplace=True)
+    elif 'index' in df.columns:
+        df.rename(columns={'index': 'Date'}, inplace=True)
+        
+    # Suppression de la timezone pour la compatibilité avec PostgreSQL
+    if 'Date' in df.columns and df['Date'].dt.tz is not None:
+        df['Date'] = df['Date'].dt.tz_localize(None)
+        
+    return df
+
 def importer_donnees():
     db = SessionLocal()
     print("Démarrage du téléchargement massif des données...")
 
-    try:
-        for ticker in TICKERS:
+    for ticker in TICKERS:
+        # Le Try/Except est maintenant DANS la boucle pour ne pas bloquer le processus global
+        try:
             print(f"-> Traitement de l'action {ticker}...")
             stock = yf.Ticker(ticker)
             info = stock.info
@@ -151,42 +176,37 @@ def importer_donnees():
             # --- HISTORIQUE DES PRIX (MULTI-TIMEFRAMES) ---
             print(f"    Récupération de l'historique des prix pour {ticker}...")
             
-            # 1. Hebdomadaire (5 ans)
-            df_1w = stock.history(period="5y", interval="1wk")
-            if not df_1w.empty: df_1w['interval'] = '1W'
+            # 1. Téléchargements bruts
+            df_1w_raw = stock.history(period="5y", interval="1wk")
+            df_1d_raw = stock.history(period="1y", interval="1d")
+            df_1h_raw = stock.history(period="1mo", interval="1h")
 
-            # 2. Journalier (1 an)
-            df_1d = stock.history(period="1y", interval="1d")
-            if not df_1d.empty: df_1d['interval'] = '1D'
-
-            # 3. Horaire (1 mois)
-            df_1h = stock.history(period="1mo", interval="1h")
-            if not df_1h.empty: df_1h['interval'] = '1h'
-
-            # Concaténation des trois dataframes
-            dfs = [df for df in [df_1w, df_1d, df_1h] if not df.empty]
+            # 2. Nettoyage et harmonisation individuels
+            cleaned_dfs = [
+                clean_dataframe(df_1w_raw, '1W'),
+                clean_dataframe(df_1d_raw, '1D'),
+                clean_dataframe(df_1h_raw, '1h')
+            ]
+            
+            # Filtre pour exclure les dataframes vides (None)
+            dfs = [df for df in cleaned_dfs if df is not None]
             
             if dfs:
-                df_final = pd.concat(dfs)
+                # Concaténation propre (ignore_index=True géré par nos colonnes explicites)
+                df_final = pd.concat(dfs, ignore_index=True)
                 
-                # Nettoyage des données pour éviter les plantages API (NaN)
+                # Nettoyage global
                 df_final = df_final.dropna(subset=['Close', 'Open', 'High', 'Low'])
                 df_final = df_final.fillna(0) 
-                
-                df_final.reset_index(inplace=True)
-                
-                # Selon l'intervalle, yfinance nomme la colonne 'Date' ou 'Datetime'
-                date_col = 'Datetime' if 'Datetime' in df_final.columns else 'Date'
-                
-                # Suppression de la timezone pour éviter les erreurs de format avec SQLAlchemy/Postgres
-                if df_final[date_col].dt.tz is not None:
-                    df_final[date_col] = df_final[date_col].dt.tz_localize(None)
 
                 # Insertion en base de données
                 for index, row in df_final.iterrows():
-                    date_val = row[date_col].to_pydatetime()
+                    # Sécurité supplémentaire au cas où
+                    if 'Date' not in row or pd.isna(row['Date']):
+                        continue
+                        
+                    date_val = row['Date'].to_pydatetime()
                     
-                    # On vérifie avec la date ET l'intervalle
                     existing_price = db.query(Price).filter(
                         Price.ticker == ticker, 
                         Price.date == date_val,
@@ -207,15 +227,16 @@ def importer_donnees():
                         db.add(new_price)
                 
                 db.commit()
-            print(f"   ✅ Données de {name} enregistrées avec succès !")
+            print(f"    ✅ Données de {name} enregistrées avec succès !")
 
-        print("Opération terminée ! Ton terminal est prêt.")
+        except Exception as e:
+            # Si un ticker plante, on annule SA transaction, on log, et on passe au suivant
+            print(f"    ❌ Erreur lors du traitement de {ticker} : {e}")
+            db.rollback()
+            continue
 
-    except Exception as e:
-        print(f"Erreur lors du traitement : {e}")
-        db.rollback()
-    finally:
-        db.close()
+    print("Opération terminée ! Ton terminal est prêt.")
+    db.close()
 
 if __name__ == "__main__":
     importer_donnees()
