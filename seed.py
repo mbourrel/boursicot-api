@@ -9,7 +9,7 @@ Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 TICKERS = [
-    # --- CAC 40 (Composants principaux - Avril 2026) ---
+    # --- CAC 40 ---
     "AC.PA", "AI.PA", "AIR.PA", "MT.AS", "CS.PA", "BNP.PA", "EN.PA", "BVI.PA", 
     "CAP.PA", "CA.PA", "ACA.PA", "BN.PA", "DSY.PA", "EDF.PA", "ENGI.PA", "EL.PA", 
     "ERF.PA", "ENX.PA", "RMS.PA", "KER.PA", "OR.PA", "LR.PA", "MC.PA", "ML.PA", 
@@ -17,31 +17,17 @@ TICKERS = [
     "GLE.PA", "STLAP.PA", "STMPA.PA", "HO.PA", "TTE.PA", "URW.PA", "VIE.PA", "DG.PA",
 
     # --- LES 7 FANTASTIQUES (USA) ---
-    "AAPL",   # Apple
-    "MSFT",   # Microsoft
-    "GOOGL",  # Alphabet (Google)
-    "AMZN",   # Amazon
-    "META",   # Meta (Facebook)
-    "NVDA",   # NVIDIA
-    "TSLA",   # Tesla
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
 
-    # --- INDICES PERTINENTS (Tickers Yahoo Finance) ---
-    "^FCHI",  # CAC 40 Index
-    "^GSPC",  # S&P 500
-    "^IXIC",  # NASDAQ Composite
-    "^DJI",   # Dow Jones Industrial Average
-    "^STOXX50E", # Euro Stoxx 50
-    "^N225",  # Nikkei 225
-    "^VIX",   # Indice de la peur (Volatilité)
-    "BTC-USD" # Bitcoin (souvent pertinent en corrélation)
+    # --- INDICES PERTINENTS ---
+    "^FCHI", "^GSPC", "^IXIC", "^DJI", "^STOXX50E", "^N225", "^VIX", "BTC-USD"
 ]
 
 def clean_dataframe(df, interval_val):
     """
-    Standardise le dataframe (nom de la date, timezone) AVANT la concaténation
-    pour éviter les conflits d'index entre les historiques journaliers et intraday.
+    Standardise le dataframe (nom de la date, timezone) AVANT la concaténation.
     """
-    if df.empty:
+    if df is None or df.empty:
         return None
     
     df = df.copy()
@@ -65,9 +51,8 @@ def importer_donnees():
     print("Démarrage du téléchargement massif des données...")
 
     for ticker in TICKERS:
-        # Le Try/Except est maintenant DANS la boucle pour ne pas bloquer le processus global
         try:
-            print(f"-> Traitement de l'action {ticker}...")
+            print(f"\n-> Traitement de l'action {ticker}...")
             stock = yf.Ticker(ticker)
             info = stock.info
 
@@ -75,167 +60,119 @@ def importer_donnees():
             sector = info.get("sector", "Inconnu")
             description = info.get("longBusinessSummary", "Description non disponible.")
 
-            # --- ANCIENNES CATÉGORIES ---
-            market_cap = info.get("marketCap", 0)
-            pe_ratio = info.get("trailingPE", 0)
-            div_yield = (info.get("dividendYield", 0) or 0) * 100
-            
-            profit_margin = (info.get("profitMargins", 0) or 0) * 100
-            roe = (info.get("returnOnEquity", 0) or 0) * 100
-            debt_to_equity = info.get("debtToEquity", 0) or 0
-
+            # --- RÉCUPÉRATION DES FONDAMENTAUX ---
             market_analysis = [
-                {"name": "Capitalisation", "val": market_cap, "unit": "$", "avg": 50000000000},
-                {"name": "PER (Price/Earnings)", "val": round(pe_ratio, 2) if pe_ratio else 0, "unit": "x", "avg": 15},
-                {"name": "Rendement Dividende", "val": round(div_yield, 2) if div_yield else 0, "unit": "%", "avg": 2.5}
+                {"name": "Capitalisation", "val": info.get("marketCap", 0), "unit": "$"},
+                {"name": "PER", "val": round(info.get("trailingPE", 0) or 0, 2), "unit": "x"},
+                {"name": "Rendement Div", "val": round((info.get("dividendYield", 0) or 0) * 100, 2), "unit": "%"}
             ]
             
             financial_health = [
-                {"name": "Marge Nette", "val": round(profit_margin, 2) if profit_margin else 0, "unit": "%", "avg": 10},
-                {"name": "ROE (Rentabilité)", "val": round(roe, 2) if roe else 0, "unit": "%", "avg": 15},
-                {"name": "Dette / Capitaux Propres", "val": round(debt_to_equity, 2) if debt_to_equity else 0, "unit": "%", "avg": 50}
+                {"name": "Marge Nette", "val": round((info.get("profitMargins", 0) or 0) * 100, 2), "unit": "%"},
+                {"name": "ROE", "val": round((info.get("returnOnEquity", 0) or 0) * 100, 2), "unit": "%"},
+                {"name": "Dette/Fonds Propres", "val": round(info.get("debtToEquity", 0) or 0, 2), "unit": "%"}
             ]
-
-            # --- 1. VALORISATION AVANCÉE ---
-            forward_pe = info.get("forwardPE", 0)
-            pb_ratio = info.get("priceToBook", 0)
-            ev_ebitda = info.get("enterpriseToEbitda", 0)
-            peg_ratio = info.get("pegRatio", 0)
 
             advanced_valuation = [
-                {"name": "Forward PE (Estimé)", "val": round(forward_pe, 2) if forward_pe else 0, "unit": "x", "avg": 15},
-                {"name": "Price to Book (P/B)", "val": round(pb_ratio, 2) if pb_ratio else 0, "unit": "x", "avg": 2},
-                {"name": "EV / EBITDA", "val": round(ev_ebitda, 2) if ev_ebitda else 0, "unit": "x", "avg": 10},
-                {"name": "PEG Ratio", "val": round(peg_ratio, 2) if peg_ratio else 0, "unit": "x", "avg": 1}
+                {"name": "Forward PE", "val": round(info.get("forwardPE", 0) or 0, 2), "unit": "x"},
+                {"name": "Price to Book", "val": round(info.get("priceToBook", 0) or 0, 2), "unit": "x"},
+                {"name": "EV / EBITDA", "val": round(info.get("enterpriseToEbitda", 0) or 0, 2), "unit": "x"},
+                {"name": "PEG Ratio", "val": round(info.get("pegRatio", 0) or 0, 2), "unit": "x"}
             ]
-
-            # --- 2. COMPTE DE RÉSULTAT & CROISSANCE ---
-            total_revenue = info.get("totalRevenue", 0)
-            ebitda = info.get("ebitda", 0)
-            rev_growth = (info.get("revenueGrowth", 0) or 0) * 100
-            earn_growth = (info.get("earningsGrowth", 0) or 0) * 100
 
             income_growth = [
-                {"name": "Chiffre d'Affaires", "val": total_revenue, "unit": "$", "avg": 0},
-                {"name": "EBITDA", "val": ebitda, "unit": "$", "avg": 0},
-                {"name": "Croissance CA", "val": round(rev_growth, 2), "unit": "%", "avg": 5},
-                {"name": "Croissance Bénéfices", "val": round(earn_growth, 2), "unit": "%", "avg": 5}
+                {"name": "Chiffre d'Affaires", "val": info.get("totalRevenue", 0), "unit": "$"},
+                {"name": "EBITDA", "val": info.get("ebitda", 0), "unit": "$"},
+                {"name": "Croissance CA", "val": round((info.get("revenueGrowth", 0) or 0) * 100, 2), "unit": "%"},
+                {"name": "Croissance Bénéfices", "val": round((info.get("earningsGrowth", 0) or 0) * 100, 2), "unit": "%"}
             ]
-
-            # --- 3. BILAN & LIQUIDITÉ ---
-            total_cash = info.get("totalCash", 0)
-            fcf = info.get("freeCashflow", 0)
-            current_ratio = info.get("currentRatio", 0)
 
             balance_cash = [
-                {"name": "Trésorerie Totale", "val": total_cash, "unit": "$", "avg": 0},
-                {"name": "Free Cash Flow", "val": fcf, "unit": "$", "avg": 0},
-                {"name": "Ratio de Liquidité", "val": round(current_ratio, 2) if current_ratio else 0, "unit": "x", "avg": 1.5}
+                {"name": "Trésorerie Totale", "val": info.get("totalCash", 0), "unit": "$"},
+                {"name": "Free Cash Flow", "val": info.get("freeCashflow", 0), "unit": "$"},
+                {"name": "Ratio Liquidité", "val": round(info.get("currentRatio", 0) or 0, 2), "unit": "x"}
             ]
-
-            # --- 4. RISQUE & MARCHÉ ---
-            beta = info.get("beta", 0)
-            high_52w = info.get("fiftyTwoWeekHigh", 0)
-            low_52w = info.get("fiftyTwoWeekLow", 0)
-            short_pct = (info.get("shortPercentOfFloat", 0) or 0) * 100
 
             risk_market = [
-                {"name": "Beta (Volatilité)", "val": round(beta, 2) if beta else 0, "unit": "x", "avg": 1},
-                {"name": "Plus Haut (52 sem)", "val": round(high_52w, 2) if high_52w else 0, "unit": "$", "avg": 0},
-                {"name": "Plus Bas (52 sem)", "val": round(low_52w, 2) if low_52w else 0, "unit": "$", "avg": 0},
-                {"name": "Actions Shortées", "val": round(short_pct, 2), "unit": "%", "avg": 2}
+                {"name": "Beta", "val": round(info.get("beta", 0) or 0, 2), "unit": "x"},
+                {"name": "Plus Haut 52w", "val": round(info.get("fiftyTwoWeekHigh", 0) or 0, 2), "unit": "$"},
+                {"name": "Plus Bas 52w", "val": round(info.get("fiftyTwoWeekLow", 0) or 0, 2), "unit": "$"},
+                {"name": "Actions Shortées", "val": round((info.get("shortPercentOfFloat", 0) or 0) * 100, 2), "unit": "%"}
             ]
 
-            # --- ENREGISTREMENT DE L'ENTREPRISE ---
-            company = db.query(Company).filter(Company.ticker == ticker).first()
-            if not company:
-                company = Company(
-                    ticker=ticker, 
-                    name=name, 
-                    sector=sector,
-                    description=description,
-                    market_analysis=market_analysis,
-                    financial_health=financial_health,
-                    advanced_valuation=advanced_valuation,
-                    income_growth=income_growth,
-                    balance_cash=balance_cash,
-                    risk_market=risk_market
-                )
-                db.add(company)
-            else:
-                company.description = description
-                company.market_analysis = market_analysis
-                company.financial_health = financial_health
-                company.advanced_valuation = advanced_valuation
-                company.income_growth = income_growth
-                company.balance_cash = balance_cash
-                company.risk_market = risk_market
-            
+            # --- INSERTION ENTREPRISE ---
+            company = Company(
+                ticker=ticker, name=name, sector=sector, description=description,
+                market_analysis=market_analysis, financial_health=financial_health,
+                advanced_valuation=advanced_valuation, income_growth=income_growth,
+                balance_cash=balance_cash, risk_market=risk_market
+            )
+            db.add(company)
             db.commit()
 
-            # --- HISTORIQUE DES PRIX (MULTI-TIMEFRAMES) ---
-            print(f"    Récupération de l'historique des prix pour {ticker}...")
+            # --- HISTORIQUE DES PRIX (MULTI-TIMEFRAMES OPTIMISÉS) ---
+            print(f"    Récupération de l'historique des prix...")
             
-            # 1. Téléchargements bruts
-            df_1w_raw = stock.history(period="5y", interval="1wk")
-            df_1d_raw = stock.history(period="1y", interval="1d")
-            df_1h_raw = stock.history(period="1mo", interval="1h")
+            # Limites maximales fiables de Yahoo Finance
+            df_1w_raw = stock.history(period="10y", interval="1wk")
+            df_1d_raw = stock.history(period="10y", interval="1d")
+            df_1h_raw = stock.history(period="730d", interval="1h") # Max ~2 ans
+            df_15m_raw = stock.history(period="60d", interval="15m") # Max 60 jours
 
-            # 2. Nettoyage et harmonisation individuels
             cleaned_dfs = [
                 clean_dataframe(df_1w_raw, '1W'),
                 clean_dataframe(df_1d_raw, '1D'),
-                clean_dataframe(df_1h_raw, '1h')
+                clean_dataframe(df_1h_raw, '1h'),
+                clean_dataframe(df_15m_raw, '15m')
             ]
             
-            # Filtre pour exclure les dataframes vides (None)
-            dfs = [df for df in cleaned_dfs if df is not None]
+            dfs = [df for df in cleaned_dfs if df is not None and not df.empty]
             
             if dfs:
-                # Concaténation propre (ignore_index=True géré par nos colonnes explicites)
                 df_final = pd.concat(dfs, ignore_index=True)
-                
-                # Nettoyage global
                 df_final = df_final.dropna(subset=['Close', 'Open', 'High', 'Low'])
                 df_final = df_final.fillna(0) 
 
-                # Insertion en base de données
-                for index, row in df_final.iterrows():
-                    # Sécurité supplémentaire au cas où
+                # --- INSERTION RAPIDE EN MASSE (Bulk Insert) ---
+                prices_to_insert = []
+                # Utilisation d'un set pour s'assurer qu'il n'y a aucun doublon exact venant de Yahoo
+                seen_records = set() 
+
+                for _, row in df_final.iterrows():
                     if 'Date' not in row or pd.isna(row['Date']):
                         continue
                         
                     date_val = row['Date'].to_pydatetime()
+                    interval_val = row['interval']
                     
-                    existing_price = db.query(Price).filter(
-                        Price.ticker == ticker, 
-                        Price.date == date_val,
-                        Price.interval == row['interval']
-                    ).first()
-                    
-                    if not existing_price:
-                        new_price = Price(
+                    # Clé unique pour éviter les doublons dans le même lot
+                    record_key = (ticker, date_val, interval_val)
+                    if record_key not in seen_records:
+                        seen_records.add(record_key)
+                        
+                        prices_to_insert.append(Price(
                             ticker=ticker,
                             date=date_val,
-                            interval=row['interval'],
+                            interval=interval_val,
                             open_price=float(row["Open"]),
                             high_price=float(row["High"]),
                             low_price=float(row["Low"]),
                             close_price=float(row["Close"]),
                             volume=int(row["Volume"])
-                        )
-                        db.add(new_price)
-                
-                db.commit()
-            print(f"    ✅ Données de {name} enregistrées avec succès !")
+                        ))
+
+                # Sauvegarde en une seule fois (beaucoup plus rapide !)
+                if prices_to_insert:
+                    db.bulk_save_objects(prices_to_insert)
+                    db.commit()
+                    print(f"    ✅ {len(prices_to_insert)} bougies enregistrées.")
 
         except Exception as e:
-            # Si un ticker plante, on annule SA transaction, on log, et on passe au suivant
             print(f"    ❌ Erreur lors du traitement de {ticker} : {e}")
             db.rollback()
             continue
 
-    print("Opération terminée ! Ton terminal est prêt.")
+    print("\nOpération terminée ! Ton terminal est prêt.")
     db.close()
 
 if __name__ == "__main__":
