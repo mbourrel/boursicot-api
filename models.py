@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, UniqueConstraint
+# Ajoute BigInteger à tes imports SQLAlchemy
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, JSON, UniqueConstraint
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -32,7 +33,9 @@ class Price(Base):
     high_price = Column(Float)
     low_price = Column(Float)
     close_price = Column(Float)
-    volume = Column(Integer)
+    
+    # --- MODIFICATION ICI : On passe de Integer à BigInteger ---
+    volume = Column(BigInteger)
 
     # Sécurité : Empêche les doublons exacts dans la base de données
     __table_args__ = (
