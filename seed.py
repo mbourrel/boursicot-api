@@ -20,7 +20,9 @@ TICKERS = [
     "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
 
     # --- INDICES PERTINENTS ---
-    "^FCHI", "^GSPC", "^IXIC", "^DJI", "^STOXX50E", "^N225", "^VIX", "BTC-USD"# --- MÉTAUX PRÉCIEUX ET INDUSTRIELS ---
+    "^FCHI", "^GSPC", "^IXIC", "^DJI", "^STOXX50E", "^N225", "^VIX", "BTC-USD",
+    
+    # --- MÉTAUX PRÉCIEUX ET INDUSTRIELS ---
     "GC=F",   # Or (Gold)
     "SI=F",   # Argent (Silver)
 
