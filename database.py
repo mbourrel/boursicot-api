@@ -1,10 +1,20 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# --- TEST EN DUR : On court-circuite le fichier .env ---
-SQLALCHEMY_DATABASE_URL = "postgresql://boursicot_db_user:vbzcSb6Hfl5LcMWn0GqGanIKjT49zknI@dpg-d798hfffte5s739hq55g-a.frankfurt-postgres.render.com/boursicot_db?sslmode=require"
+# --- CHARGEMENT DU FICHIER .ENV ---
+# Cela va chercher l'URL dans ton fichier .env au lieu de l'écrire en dur
+load_dotenv()
 
+SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL")
+
+# Sécurité pour vérifier que l'URL est bien chargée
+if not SQLALCHEMY_DATABASE_URL:
+    raise ValueError("⚠️ L'URL de la base de données est introuvable. Vérifie ton fichier .env !")
+
+# Création du moteur SQLAlchemy
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
