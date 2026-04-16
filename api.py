@@ -89,6 +89,16 @@ def get_prices(
         for p in prices
     ]
 
+@app.get("/api/fundamentals/{ticker}")
+def get_company(ticker: str, db: Session = Depends(get_db)):
+    """
+    Récupère les données fondamentales d'une seule entreprise par son ticker exact.
+    """
+    company = db.query(models.Company).filter(models.Company.ticker == ticker).first()
+    if not company:
+        raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' introuvable")
+    return company
+
 @app.get("/api/search")
 def search_tickers(q: str, db: Session = Depends(get_db)):
     """
