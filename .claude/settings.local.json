@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/mateo/boursicot-front/**)",
+      "Bash(git -C /c/Users/mateo/boursicot-api remote -v)",
+      "Bash(git -C /c/Users/mateo/boursicot-front remote -v)",
+      "Read(//c/Users/mateo/.claude/projects/c--Users-mateo-boursicot-api/memory/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\mateo\\boursicot-front\\src\\components",
+      "C:\\Users\\mateo\\boursicot-front\\src",
+      "C:\\Users\\mateo\\boursicot-front"
+    ]
+  }
+}
