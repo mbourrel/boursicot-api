@@ -20,7 +20,20 @@ TICKERS = [
     "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
 
     # --- INDICES PERTINENTS ---
-    "^FCHI", "^GSPC", "^IXIC", "^DJI", "^STOXX50E", "^N225", "^VIX", "BTC-USD"
+    "^FCHI", "^GSPC", "^IXIC", "^DJI", "^STOXX50E", "^N225", "^VIX", "BTC-USD"# --- MÉTAUX PRÉCIEUX ET INDUSTRIELS ---
+    "GC=F",   # Or (Gold)
+    "SI=F",   # Argent (Silver)
+
+    # --- ÉNERGIE ---
+    "CL=F",   # Pétrole Brut WTI (Crude Oil)
+    "BZ=F",   # Pétrole Brent
+    "NG=F",   # Gaz Naturel
+
+
+    # --- MATIÈRES PREMIÈRES AGRICOLES ---
+    "ZC=F",   # Maïs (Corn)
+    "ZW=F",   # Blé (Wheat)
+    "CT=F"    # Coton
 ]
 
 def clean_dataframe(df, interval_val):
