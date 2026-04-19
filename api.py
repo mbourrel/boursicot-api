@@ -109,3 +109,145 @@ def search_tickers(q: str, db: Session = Depends(get_db)):
         (models.Company.name.ilike(f"%{q}%"))
     ).limit(10).all()
     return results
+
+
+# =============================================================================
+# ENVIRONNEMENT MACRO GLOBAL
+# =============================================================================
+
+import os
+import json
+from datetime import datetime, timedelta
+
+import pandas as pd
+import yfinance as yf
+from fredapi import Fred
+
+# ── Helpers cache PostgreSQL ──────────────────────────────────────────────────
+
+def get_cached(db: Session, key: str, max_age_hours: int = 24):
+    record = db.query(models.MacroCache).filter(models.MacroCache.cache_key == key).first()
+    if not record:
+        return None
+    if datetime.utcnow() - record.updated_at > timedelta(hours=max_age_hours):
+        return None
+    return json.loads(record.data_json)
+
+def set_cached(db: Session, key: str, data: dict):
+    record = db.query(models.MacroCache).filter(models.MacroCache.cache_key == key).first()
+    if record:
+        record.data_json  = json.dumps(data, ensure_ascii=False)
+        record.updated_at = datetime.utcnow()
+    else:
+        record = models.MacroCache(cache_key=key, data_json=json.dumps(data, ensure_ascii=False))
+        db.add(record)
+    db.commit()
+
+
+# ── GET /macro/cycle ──────────────────────────────────────────────────────────
+
+@app.get("/macro/cycle")
+def get_macro_cycle(db: Session = Depends(get_db)):
+    """
+    Phase du cycle economique basee sur INDPRO (croissance) et CPIAUCSL
+    (inflation) depuis la FRED. Resultat mis en cache 24h.
+    """
+    cached = get_cached(db, "macro_cycle")
+    if cached:
+        return cached
+
+    api_key = os.getenv("FRED_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="FRED_API_KEY manquant dans les variables d environnement")
+
+    try:
+        fred  = Fred(api_key=api_key)
+        start = datetime.now() - timedelta(days=15 * 31)
+        end   = datetime.now()
+        indpro = fred.get_series("INDPRO",   observation_start=start, observation_end=end).dropna()
+        cpi    = fred.get_series("CPIAUCSL", observation_start=start, observation_end=end).dropna()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erreur FRED : {exc}")
+
+    def yoy_and_trend(series):
+        if len(series) < 14:
+            raise HTTPException(status_code=500, detail=f"Historique insuffisant ({len(series)} mois, 14 requis)")
+        curr     = float(series.iloc[-1])
+        prev     = float(series.iloc[-2])
+        yr_ago   = float(series.iloc[-13])
+        yr_ago_p = float(series.iloc[-14])
+        yoy_curr = (curr - yr_ago)   / yr_ago   * 100
+        yoy_prev = (prev - yr_ago_p) / yr_ago_p * 100
+        return round(yoy_curr, 2), ("up" if yoy_curr > yoy_prev else "down")
+
+    growth_yoy,    growth_trend    = yoy_and_trend(indpro)
+    inflation_yoy, inflation_trend = yoy_and_trend(cpi)
+
+    if   growth_trend == "up"   and inflation_trend == "down": phase = "Expansion"
+    elif growth_trend == "up"   and inflation_trend == "up":   phase = "Surchauffe"
+    elif growth_trend == "down" and inflation_trend == "up":   phase = "Contraction"
+    else:                                                        phase = "Recession"
+
+    result = {
+        "phase":           phase,
+        "growth_yoy":      growth_yoy,
+        "inflation_yoy":   inflation_yoy,
+        "growth_trend":    growth_trend,
+        "inflation_trend": inflation_trend,
+    }
+    set_cached(db, "macro_cycle", result)
+    return result
+
+
+# ── GET /macro/liquidity ──────────────────────────────────────────────────────
+
+@app.get("/macro/liquidity")
+def get_macro_liquidity(db: Session = Depends(get_db)):
+    """
+    M2SL (FRED) et BTC-USD (yfinance) normalises base 100 depuis jan 2020,
+    reechantillonnes au mois. Resultat mis en cache 24h.
+    """
+    cached = get_cached(db, "macro_liquidity")
+    if cached:
+        return cached
+
+    api_key = os.getenv("FRED_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="FRED_API_KEY manquant dans les variables d environnement")
+
+    start_date = "2020-01-01"
+
+    try:
+        fred   = Fred(api_key=api_key)
+        m2_raw = fred.get_series("M2SL", observation_start=start_date).dropna()
+        m2     = m2_raw.resample("MS").last()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erreur FRED M2SL : {exc}")
+
+    try:
+        btc_df = yf.download("BTC-USD", start=start_date, auto_adjust=True, progress=False)
+        if btc_df.empty:
+            raise ValueError("Aucune donnee retournee pour BTC-USD")
+        close = btc_df["Close"]
+        if isinstance(close, pd.DataFrame):
+            close = close.squeeze()
+        btc = close.resample("MS").last().dropna()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erreur yfinance BTC : {exc}")
+
+    df = pd.DataFrame({"m2": m2, "btc": btc}).dropna()
+    if len(df) < 2:
+        raise HTTPException(status_code=500, detail=f"Trop peu de points apres alignement ({len(df)})")
+
+    base_m2  = df["m2"].iloc[0]
+    base_btc = df["btc"].iloc[0]
+    df["m2_norm"]  = df["m2"]  / base_m2  * 100
+    df["btc_norm"] = df["btc"] / base_btc * 100
+
+    result = {
+        "dates":          [d.strftime("%Y-%m-%d") for d in df.index],
+        "m2_normalized":  [round(float(v), 2) for v in df["m2_norm"]],
+        "btc_normalized": [round(float(v), 2) for v in df["btc_norm"]],
+    }
+    set_cached(db, "macro_liquidity", result)
+    return result
