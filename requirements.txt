@@ -38,4 +38,4 @@ urllib3==2.6.3
 uvicorn==0.43.0
 websockets==16.0
 yfinance==1.2.0
-fredapi
+fredapi==0.5.1

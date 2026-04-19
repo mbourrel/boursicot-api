@@ -251,3 +251,26 @@ def get_macro_liquidity(db: Session = Depends(get_db)):
     }
     set_cached(db, "macro_liquidity", result)
     return result
+
+# ── GET /macro/ping — diagnostic rapide de la cle FRED ───────────────────────
+
+@app.get("/macro/ping")
+def macro_ping():
+    """
+    Endpoint de diagnostic : verifie que la cle FRED est configuree
+    et qu une serie courte est accessible. Repond en < 2s.
+    """
+    api_key = os.getenv("FRED_API_KEY")
+    if not api_key:
+        return {"status": "error", "detail": "FRED_API_KEY absent des variables d environnement"}
+    try:
+        fred = Fred(api_key=api_key)
+        # Serie tres courte : 2 observations, pour tester la connexion uniquement
+        from datetime import datetime, timedelta as td
+        test = fred.get_series("FEDFUNDS",
+                               observation_start=datetime.now() - td(days=60),
+                               observation_end=datetime.now())
+        return {"status": "ok", "fred_key_valid": True, "sample_points": len(test)}
+    except Exception as exc:
+        return {"status": "error", "detail": str(exc)}
+
