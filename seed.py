@@ -1,7 +1,81 @@
 import yfinance as yf
 import pandas as pd
+from collections import OrderedDict
 from database import SessionLocal, engine
 from models import Base, Company, Price
+
+# ── Mappings anglais → français pour les états financiers ─────────────────────
+
+BALANCE_SHEET_MAP = OrderedDict([
+    ("Total Assets",                            "Actif Total"),
+    ("Total Liabilities Net Minority Interest", "Passif Total"),
+    ("Stockholders Equity",                     "Capitaux Propres"),
+    ("Total Debt",                              "Dette Totale"),
+    ("Long Term Debt",                          "Dette Long Terme"),
+    ("Current Assets",                          "Actif Courant"),
+    ("Current Liabilities",                     "Passif Courant"),
+    ("Cash And Cash Equivalents",               "Trésorerie & Équivalents"),
+    ("Accounts Receivable",                     "Créances Clients"),
+    ("Inventory",                               "Stocks"),
+    ("Goodwill",                                "Goodwill"),
+    ("Retained Earnings",                       "Bénéfices Non Distribués"),
+    ("Net PPE",                                 "Immobilisations Nettes"),
+    ("Working Capital",                         "Besoin en Fonds de Roulement"),
+])
+
+INCOME_STMT_MAP = OrderedDict([
+    ("Total Revenue",                     "Chiffre d'Affaires"),
+    ("Cost Of Revenue",                   "Coût des Ventes"),
+    ("Gross Profit",                      "Bénéfice Brut"),
+    ("Operating Income",                  "Résultat Opérationnel (EBIT)"),
+    ("EBITDA",                            "EBITDA"),
+    ("Net Income",                        "Résultat Net"),
+    ("Basic EPS",                         "BPA Basique"),
+    ("Diluted EPS",                       "BPA Dilué"),
+    ("Interest Expense",                  "Charges Financières"),
+    ("Tax Provision",                     "Impôt sur les Bénéfices"),
+    ("Research And Development",          "Recherche & Développement (R&D)"),
+    ("Selling General And Administration","Frais Généraux & Admin. (SG&A)"),
+])
+
+CASHFLOW_MAP = OrderedDict([
+    ("Operating Cash Flow",          "Flux de Trésorerie Opérationnel"),
+    ("Capital Expenditure",          "Dépenses d'Investissement (CapEx)"),
+    ("Free Cash Flow",               "Free Cash Flow"),
+    ("Investing Cash Flow",          "Flux d'Investissement Total"),
+    ("Financing Cash Flow",          "Flux de Financement Total"),
+    ("Dividends Paid",               "Dividendes Versés"),
+    ("Repurchase Of Capital Stock",  "Rachats d'Actions"),
+    ("Depreciation And Amortization","Amortissements (D&A)"),
+    ("Net Income",                   "Résultat Net"),
+    ("Change In Working Capital",    "Variation du BFR"),
+])
+
+
+def parse_financial_df(df, name_map):
+    """
+    Transforme un DataFrame yfinance (index = métriques, colonnes = dates)
+    en structure JSON stockable : {"years": [...], "items": [{name, vals, unit}]}.
+    Ne conserve que les métriques du name_map et ignore celles entièrement nulles.
+    """
+    if df is None or df.empty:
+        return None
+
+    # Colonnes triées du plus récent au plus ancien
+    sorted_cols = sorted(df.columns, reverse=True)[:4]
+    years = [str(col)[:10] for col in sorted_cols]
+
+    items = []
+    for en_name, fr_name in name_map.items():
+        if en_name not in df.index:
+            continue
+        row = df.loc[en_name]
+        vals = [None if pd.isna(row[col]) else float(row[col]) for col in sorted_cols]
+        if all(v is None or v == 0 for v in vals):
+            continue
+        items.append({"name": fr_name, "vals": vals, "unit": "$"})
+
+    return {"years": years, "items": items} if items else None
 
 # --- MISE À JOUR DE LA BASE DE DONNÉES ---
 print("Réinitialisation des tables PostgreSQL...")
@@ -117,12 +191,31 @@ def importer_donnees():
                 {"name": "Actions Shortées", "val": round((info.get("shortPercentOfFloat", 0) or 0) * 100, 2), "unit": "%"}
             ]
 
+            # --- ÉTATS FINANCIERS HISTORIQUES ---
+            try:
+                balance_sheet_data = parse_financial_df(stock.balance_sheet, BALANCE_SHEET_MAP)
+            except Exception:
+                balance_sheet_data = None
+
+            try:
+                income_stmt_data = parse_financial_df(stock.income_stmt, INCOME_STMT_MAP)
+            except Exception:
+                income_stmt_data = None
+
+            try:
+                cashflow_data = parse_financial_df(stock.cashflow, CASHFLOW_MAP)
+            except Exception:
+                cashflow_data = None
+
             # --- INSERTION ENTREPRISE ---
             company = Company(
                 ticker=ticker, name=name, sector=sector, description=description,
                 market_analysis=market_analysis, financial_health=financial_health,
                 advanced_valuation=advanced_valuation, income_growth=income_growth,
-                balance_cash=balance_cash, risk_market=risk_market
+                balance_cash=balance_cash, risk_market=risk_market,
+                balance_sheet_data=balance_sheet_data,
+                income_stmt_data=income_stmt_data,
+                cashflow_data=cashflow_data,
             )
             db.add(company)
             db.commit()

@@ -13,12 +13,18 @@ class Company(Base):
     sector = Column(String)
     description = Column(String)
 
-    market_analysis   = Column(JSON)
-    financial_health  = Column(JSON)
+    market_analysis    = Column(JSON)
+    financial_health   = Column(JSON)
     advanced_valuation = Column(JSON)
-    income_growth     = Column(JSON)
-    balance_cash      = Column(JSON)
-    risk_market       = Column(JSON)
+    income_growth      = Column(JSON)
+    balance_cash       = Column(JSON)
+    risk_market        = Column(JSON)
+
+    # États financiers historiques (4 dernières années)
+    # Format : {"years": ["2024-12-31", ...], "items": [{"name": str, "vals": [float|null, ...], "unit": "$"}]}
+    balance_sheet_data = Column(JSON)
+    income_stmt_data   = Column(JSON)
+    cashflow_data      = Column(JSON)
 
 class Price(Base):
     __tablename__ = "prices"
