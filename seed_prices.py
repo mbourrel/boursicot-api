@@ -18,17 +18,40 @@ from seed_utils import TICKERS, clean_dataframe
 Base.metadata.create_all(bind=engine)
 
 
+CHUNK_SIZE = 500  # records par INSERT — évite les timeouts SSL sur les gros historiques
+
+
+def insert_in_chunks(db, records: list):
+    """Insère les records par paquets de CHUNK_SIZE pour éviter les timeouts SSL."""
+    for i in range(0, len(records), CHUNK_SIZE):
+        chunk = records[i:i + CHUNK_SIZE]
+        stmt = pg_insert(Price).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uix_ticker_date_interval",
+            set_={
+                "open_price":  stmt.excluded.open_price,
+                "high_price":  stmt.excluded.high_price,
+                "low_price":   stmt.excluded.low_price,
+                "close_price": stmt.excluded.close_price,
+                "volume":      stmt.excluded.volume,
+            }
+        )
+        db.execute(stmt)
+        db.commit()
+
+
 def seed_prices(tickers: list[str]):
-    db = SessionLocal()
     print(f"Chargement des prix pour {len(tickers)} ticker(s)...\n")
 
     for ticker in tickers:
+        # Nouvelle session par ticker : évite qu'une connexion cassée bloque les suivants
+        db = SessionLocal()
         try:
             print(f"-> {ticker}...")
             stock = yf.Ticker(ticker)
 
-            df_1w_raw  = stock.history(period="max", interval="1wk")
-            df_1d_raw  = stock.history(period="max", interval="1d")
+            df_1w_raw  = stock.history(start="1998-01-01", interval="1wk")
+            df_1d_raw  = stock.history(start="1998-01-01", interval="1d")
             df_1h_raw  = stock.history(period="730d", interval="1h")
             df_15m_raw = stock.history(period="60d",  interval="15m")
 
@@ -72,32 +95,20 @@ def seed_prices(tickers: list[str]):
                 })
 
             if records:
-                stmt = pg_insert(Price).values(records)
-                stmt = stmt.on_conflict_do_update(
-                    constraint="uix_ticker_date_interval",
-                    set_={
-                        "open_price":  stmt.excluded.open_price,
-                        "high_price":  stmt.excluded.high_price,
-                        "low_price":   stmt.excluded.low_price,
-                        "close_price": stmt.excluded.close_price,
-                        "volume":      stmt.excluded.volume,
-                    }
-                )
-                db.execute(stmt)
-                db.commit()
-                print(f"   ✅ {len(records)} bougies insérées/mises à jour.")
+                insert_in_chunks(db, records)
+                print(f"   ✅ {len(records)} bougies insérées/mises à jour ({len(records)//CHUNK_SIZE + 1} chunk(s)).")
             else:
                 print(f"   ⚠️  Aucun enregistrement valide pour {ticker}")
 
         except Exception as e:
             print(f"   ❌ Erreur {ticker} : {e}")
             db.rollback()
-            continue
+        finally:
+            db.close()
 
         time.sleep(0.5)  # anti rate-limit Yahoo Finance
 
     print("\nPrix chargés.")
-    db.close()
 
 
 if __name__ == "__main__":
