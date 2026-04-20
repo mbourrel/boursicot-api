@@ -25,6 +25,14 @@ def get_cached(db: Session, key: str, max_age_hours: int = 24):
     return json.loads(record.data_json)
 
 
+def get_stale(db: Session, key: str):
+    """Retourne le cache même périmé — fallback si la source externe est indisponible."""
+    record = db.query(models.MacroCache).filter(models.MacroCache.cache_key == key).first()
+    if not record:
+        return None
+    return json.loads(record.data_json)
+
+
 def set_cached(db: Session, key: str, data: dict):
     record = db.query(models.MacroCache).filter(models.MacroCache.cache_key == key).first()
     if record:
@@ -59,6 +67,9 @@ def get_macro_cycle(db: Session = Depends(get_db)):
         indpro = fred.get_series("INDPRO",   observation_start=start, observation_end=end).dropna()
         cpi    = fred.get_series("CPIAUCSL", observation_start=start, observation_end=end).dropna()
     except Exception as exc:
+        stale = get_stale(db, "macro_cycle")
+        if stale:
+            return stale
         raise HTTPException(status_code=502, detail=f"Erreur FRED : {exc}")
 
     def yoy_and_trend(series):
@@ -114,6 +125,9 @@ def get_macro_liquidity(db: Session = Depends(get_db)):
         m2_raw = fred.get_series("M2SL", observation_start=start_date).dropna()
         m2     = m2_raw.resample("MS").last()
     except Exception as exc:
+        stale = get_stale(db, "macro_liquidity")
+        if stale:
+            return stale
         raise HTTPException(status_code=502, detail=f"Erreur FRED M2SL : {exc}")
 
     try:
@@ -122,6 +136,9 @@ def get_macro_liquidity(db: Session = Depends(get_db)):
             raise ValueError("Aucune donnée retournée pour BTC-USD")
         btc = btc_df["Close"].resample("MS").last().dropna()
     except Exception as exc:
+        stale = get_stale(db, "macro_liquidity")
+        if stale:
+            return stale
         raise HTTPException(status_code=502, detail=f"Erreur yfinance BTC : {exc}")
 
     df = pd.DataFrame({"m2": m2, "btc": btc}).dropna()
@@ -167,6 +184,9 @@ def get_macro_cycle_history(db: Session = Depends(get_db)):
         indpro = fred.get_series("INDPRO",   observation_start=start, observation_end=end).dropna()
         cpi    = fred.get_series("CPIAUCSL", observation_start=start, observation_end=end).dropna()
     except Exception as exc:
+        stale = get_stale(db, "macro_cycle_history")
+        if stale:
+            return stale
         raise HTTPException(status_code=502, detail=f"Erreur FRED : {exc}")
 
     df = pd.DataFrame({"indpro": indpro, "cpi": cpi}).dropna()
