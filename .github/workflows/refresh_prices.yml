@@ -18,7 +18,7 @@ jobs:
   seed-prices:
     name: Seed prices
     runs-on: ubuntu-latest
-    timeout-minutes: 30     # sécurité : tue le job si yfinance bloque
+    timeout-minutes: 10     # le script récent tourne en ~3 min, 10 min = marge large
 
     steps:
       - name: Checkout du code
