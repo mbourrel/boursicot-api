@@ -4,6 +4,7 @@ Lance uniquement ce script pour mettre à jour les fondamentaux sans toucher aux
 
     python seed_fundamentals.py
 """
+import time
 import yfinance as yf
 from database import SessionLocal, engine
 from models import Base, Company
@@ -109,6 +110,8 @@ def seed_fundamentals():
             print(f"   ❌ Erreur {ticker} : {e}")
             db.rollback()
             continue
+
+        time.sleep(0.5)  # anti rate-limit Yahoo Finance
 
     print("\nFondamentaux chargés.")
     db.close()

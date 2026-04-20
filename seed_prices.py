@@ -7,6 +7,7 @@ Lance uniquement ce script pour rafraîchir les cours sans toucher aux fondament
     python seed_prices.py AAPL MSFT     # plusieurs tickers
 """
 import sys
+import time
 import pandas as pd
 import yfinance as yf
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -92,6 +93,8 @@ def seed_prices(tickers: list[str]):
             print(f"   ❌ Erreur {ticker} : {e}")
             db.rollback()
             continue
+
+        time.sleep(0.5)  # anti rate-limit Yahoo Finance
 
     print("\nPrix chargés.")
     db.close()
