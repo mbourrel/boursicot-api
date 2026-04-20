@@ -3,6 +3,7 @@ import pandas as pd
 from collections import OrderedDict
 from database import SessionLocal, engine
 from models import Base, Company, Price
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 # ── Mappings anglais → français pour les états financiers ─────────────────────
 
@@ -77,9 +78,8 @@ def parse_financial_df(df, name_map):
 
     return {"years": years, "items": items} if items else None
 
-# --- MISE À JOUR DE LA BASE DE DONNÉES ---
-print("Réinitialisation des tables PostgreSQL...")
-Base.metadata.drop_all(bind=engine)
+# --- MISE À JOUR DE LA BASE DE DONNÉES (sans suppression) ---
+print("Vérification/création des tables PostgreSQL...")
 Base.metadata.create_all(bind=engine)
 
 TICKERS = [
@@ -207,17 +207,32 @@ def importer_donnees():
             except Exception:
                 cashflow_data = None
 
-            # --- INSERTION ENTREPRISE ---
-            company = Company(
-                ticker=ticker, name=name, sector=sector, description=description,
-                market_analysis=market_analysis, financial_health=financial_health,
-                advanced_valuation=advanced_valuation, income_growth=income_growth,
-                balance_cash=balance_cash, risk_market=risk_market,
-                balance_sheet_data=balance_sheet_data,
-                income_stmt_data=income_stmt_data,
-                cashflow_data=cashflow_data,
-            )
-            db.add(company)
+            # --- UPSERT ENTREPRISE (crée ou écrase si le ticker existe déjà) ---
+            company = db.query(Company).filter(Company.ticker == ticker).first()
+            if company:
+                company.name = name
+                company.sector = sector
+                company.description = description
+                company.market_analysis = market_analysis
+                company.financial_health = financial_health
+                company.advanced_valuation = advanced_valuation
+                company.income_growth = income_growth
+                company.balance_cash = balance_cash
+                company.risk_market = risk_market
+                company.balance_sheet_data = balance_sheet_data
+                company.income_stmt_data = income_stmt_data
+                company.cashflow_data = cashflow_data
+            else:
+                company = Company(
+                    ticker=ticker, name=name, sector=sector, description=description,
+                    market_analysis=market_analysis, financial_health=financial_health,
+                    advanced_valuation=advanced_valuation, income_growth=income_growth,
+                    balance_cash=balance_cash, risk_market=risk_market,
+                    balance_sheet_data=balance_sheet_data,
+                    income_stmt_data=income_stmt_data,
+                    cashflow_data=cashflow_data,
+                )
+                db.add(company)
             db.commit()
 
             # --- HISTORIQUE DES PRIX (MULTI-TIMEFRAMES OPTIMISÉS) ---
@@ -271,11 +286,36 @@ def importer_donnees():
                             volume=int(row["Volume"])
                         ))
 
-                # Sauvegarde en une seule fois (beaucoup plus rapide !)
+                # Upsert en masse : INSERT ... ON CONFLICT DO UPDATE
+                # Met à jour OHLCV si la bougie existe déjà, sinon insère.
                 if prices_to_insert:
-                    db.bulk_save_objects(prices_to_insert)
+                    records = [
+                        {
+                            "ticker":      p.ticker,
+                            "date":        p.date,
+                            "interval":    p.interval,
+                            "open_price":  p.open_price,
+                            "high_price":  p.high_price,
+                            "low_price":   p.low_price,
+                            "close_price": p.close_price,
+                            "volume":      p.volume,
+                        }
+                        for p in prices_to_insert
+                    ]
+                    stmt = pg_insert(Price).values(records)
+                    stmt = stmt.on_conflict_do_update(
+                        constraint="uix_ticker_date_interval",
+                        set_={
+                            "open_price":  stmt.excluded.open_price,
+                            "high_price":  stmt.excluded.high_price,
+                            "low_price":   stmt.excluded.low_price,
+                            "close_price": stmt.excluded.close_price,
+                            "volume":      stmt.excluded.volume,
+                        }
+                    )
+                    db.execute(stmt)
                     db.commit()
-                    print(f"    ✅ {len(prices_to_insert)} bougies enregistrées.")
+                    print(f"    ✅ {len(prices_to_insert)} bougies insérées/mises à jour.")
 
         except Exception as e:
             print(f"    ❌ Erreur lors du traitement de {ticker} : {e}")
