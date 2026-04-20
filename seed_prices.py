@@ -27,8 +27,8 @@ def seed_prices(tickers: list[str]):
             print(f"-> {ticker}...")
             stock = yf.Ticker(ticker)
 
-            df_1w_raw  = stock.history(period="10y",  interval="1wk")
-            df_1d_raw  = stock.history(period="10y",  interval="1d")
+            df_1w_raw  = stock.history(period="max", interval="1wk")
+            df_1d_raw  = stock.history(period="max", interval="1d")
             df_1h_raw  = stock.history(period="730d", interval="1h")
             df_15m_raw = stock.history(period="60d",  interval="15m")
 
