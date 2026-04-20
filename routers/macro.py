@@ -142,6 +142,77 @@ def get_macro_liquidity(db: Session = Depends(get_db)):
     return result
 
 
+# ── GET /macro/cycle/history ─────────────────────────────────────────────────
+
+@router.get("/cycle/history")
+def get_macro_cycle_history(db: Session = Depends(get_db)):
+    """
+    Historique mensuel du cycle économique sur les 5 dernières années.
+    Chaque point contient : date, growth_yoy (INDPRO), inflation_yoy (CPI), phase.
+    """
+    cached = get_cached(db, "macro_cycle_history")
+    if cached:
+        return cached
+
+    api_key = os.getenv("FRED_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="FRED_API_KEY manquant dans les variables d'environnement")
+
+    try:
+        fred  = Fred(api_key=api_key)
+        # 6 ans + 14 mois de marge pour calculer les YoY sur toute la période
+        start = datetime.now() - timedelta(days=int((6 * 365 + 14 * 31)))
+        end   = datetime.now()
+        indpro = fred.get_series("INDPRO",   observation_start=start, observation_end=end).dropna()
+        cpi    = fred.get_series("CPIAUCSL", observation_start=start, observation_end=end).dropna()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erreur FRED : {exc}")
+
+    df = pd.DataFrame({"indpro": indpro, "cpi": cpi}).dropna()
+
+    if len(df) < 14:
+        raise HTTPException(status_code=500, detail=f"Historique insuffisant ({len(df)} mois, 14 requis)")
+
+    history = []
+    for i in range(13, len(df)):
+        g_curr   = float(df["indpro"].iloc[i])
+        g_prev   = float(df["indpro"].iloc[i - 1])
+        g_yr     = float(df["indpro"].iloc[i - 12])
+        g_yr_p   = float(df["indpro"].iloc[i - 13])
+
+        c_curr   = float(df["cpi"].iloc[i])
+        c_prev   = float(df["cpi"].iloc[i - 1])
+        c_yr     = float(df["cpi"].iloc[i - 12])
+        c_yr_p   = float(df["cpi"].iloc[i - 13])
+
+        growth_yoy      = (g_curr - g_yr)   / g_yr   * 100
+        growth_yoy_prev = (g_prev - g_yr_p) / g_yr_p * 100
+        cpi_yoy         = (c_curr - c_yr)   / c_yr   * 100
+        cpi_yoy_prev    = (c_prev - c_yr_p) / c_yr_p * 100
+
+        growth_trend    = "up" if growth_yoy > growth_yoy_prev else "down"
+        inflation_trend = "up" if cpi_yoy    > cpi_yoy_prev    else "down"
+
+        if   growth_trend == "up"   and inflation_trend == "down": phase = "Expansion"
+        elif growth_trend == "up"   and inflation_trend == "up":   phase = "Surchauffe"
+        elif growth_trend == "down" and inflation_trend == "up":   phase = "Contraction"
+        else:                                                        phase = "Récession"
+
+        history.append({
+            "date":          df.index[i].strftime("%Y-%m-%d"),
+            "growth_yoy":    round(growth_yoy, 2),
+            "inflation_yoy": round(cpi_yoy, 2),
+            "phase":         phase,
+        })
+
+    # Garder les 60 derniers mois (5 ans)
+    history = history[-60:]
+
+    result = {"history": history}
+    set_cached(db, "macro_cycle_history", result)
+    return result
+
+
 # ── GET /macro/ping ───────────────────────────────────────────────────────────
 
 @router.get("/ping")
