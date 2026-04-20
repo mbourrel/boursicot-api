@@ -117,13 +117,10 @@ def get_macro_liquidity(db: Session = Depends(get_db)):
         raise HTTPException(status_code=502, detail=f"Erreur FRED M2SL : {exc}")
 
     try:
-        btc_df = yf.download("BTC-USD", start=start_date, auto_adjust=True, progress=False)
+        btc_df = yf.Ticker("BTC-USD").history(start=start_date, auto_adjust=True)
         if btc_df.empty:
             raise ValueError("Aucune donnée retournée pour BTC-USD")
-        close = btc_df["Close"]
-        if isinstance(close, pd.DataFrame):
-            close = close.squeeze()
-        btc = close.resample("MS").last().dropna()
+        btc = btc_df["Close"].resample("MS").last().dropna()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Erreur yfinance BTC : {exc}")
 
