@@ -9,7 +9,7 @@ from models import Base, MacroCache
 
 Base.metadata.create_all(bind=engine)
 
-MACRO_KEYS = ["macro_cycle", "macro_liquidity"]
+MACRO_KEYS = ["macro_cycle", "macro_liquidity", "macro_cycle_history"]
 
 
 def seed_macro():

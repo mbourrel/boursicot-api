@@ -160,8 +160,9 @@ def get_macro_cycle_history(db: Session = Depends(get_db)):
 
     try:
         fred  = Fred(api_key=api_key)
-        # 6 ans + 14 mois de marge pour calculer les YoY sur toute la période
-        start = datetime.now() - timedelta(days=int((6 * 365 + 14 * 31)))
+        # Depuis jan 1997 : 13 mois de marge avant 1998 pour calculer les YoY dès jan 1998
+        # INDPRO disponible depuis 1919, CPIAUCSL depuis 1947 — pas de limite côté FRED
+        start = "1997-01-01"
         end   = datetime.now()
         indpro = fred.get_series("INDPRO",   observation_start=start, observation_end=end).dropna()
         cpi    = fred.get_series("CPIAUCSL", observation_start=start, observation_end=end).dropna()
@@ -205,9 +206,7 @@ def get_macro_cycle_history(db: Session = Depends(get_db)):
             "phase":         phase,
         })
 
-    # Garder les 60 derniers mois (5 ans)
-    history = history[-60:]
-
+    # Historique complet depuis 1998 — pas de troncature
     result = {"history": history}
     set_cached(db, "macro_cycle_history", result)
     return result
