@@ -18,15 +18,18 @@ from seed_utils import TICKERS, clean_dataframe
 Base.metadata.create_all(bind=engine)
 
 
-CHUNK_SIZE = 500  # records par INSERT — évite les timeouts SSL sur les gros historiques
+CHUNK_SIZE   = 200   # records par INSERT
+CHUNK_SLEEP  = 0.3   # secondes entre chaque chunk
+RETRY_DELAYS = [5, 15, 30]  # secondes avant chaque tentative de retry
 
 
 def insert_in_chunks(db, records: list):
-    """Insère les records par paquets de CHUNK_SIZE pour éviter les timeouts SSL."""
-    for i in range(0, len(records), CHUNK_SIZE):
+    """Insère les records par paquets avec pause entre chaque chunk."""
+    total = len(records)
+    for i in range(0, total, CHUNK_SIZE):
         chunk = records[i:i + CHUNK_SIZE]
-        stmt = pg_insert(Price).values(chunk)
-        stmt = stmt.on_conflict_do_update(
+        stmt  = pg_insert(Price).values(chunk)
+        stmt  = stmt.on_conflict_do_update(
             constraint="uix_ticker_date_interval",
             set_={
                 "open_price":  stmt.excluded.open_price,
@@ -38,14 +41,36 @@ def insert_in_chunks(db, records: list):
         )
         db.execute(stmt)
         db.commit()
+        if i + CHUNK_SIZE < total:
+            time.sleep(CHUNK_SLEEP)
+
+
+def insert_with_retry(records: list, ticker: str) -> bool:
+    """
+    Ouvre une session fraîche, insère en chunks.
+    En cas d'erreur de connexion, réessaie jusqu'à 3 fois avec backoff.
+    Retourne True si succès, False sinon.
+    """
+    for attempt, delay in enumerate([0] + RETRY_DELAYS, start=1):
+        if delay:
+            print(f"   ⏳ Retry {attempt - 1}/3 dans {delay}s...")
+            time.sleep(delay)
+        db = SessionLocal()
+        try:
+            insert_in_chunks(db, records)
+            return True
+        except Exception as exc:
+            db.rollback()
+            print(f"   ⚠️  Tentative {attempt} échouée : {exc}")
+        finally:
+            db.close()
+    return False
 
 
 def seed_prices(tickers: list[str]):
     print(f"Chargement des prix pour {len(tickers)} ticker(s)...\n")
 
     for ticker in tickers:
-        # Nouvelle session par ticker : évite qu'une connexion cassée bloque les suivants
-        db = SessionLocal()
         try:
             print(f"-> {ticker}...")
             stock = yf.Ticker(ticker)
@@ -54,7 +79,7 @@ def seed_prices(tickers: list[str]):
             df_1d_raw  = stock.history(start="1998-01-01", interval="1d")
             df_1h_raw  = stock.history(period="730d", interval="1h")
             df_15m_raw = stock.history(period="60d",  interval="15m")
-
+    
             cleaned_dfs = [
                 clean_dataframe(df_1w_raw,  '1W'),
                 clean_dataframe(df_1d_raw,  '1D'),
@@ -95,16 +120,17 @@ def seed_prices(tickers: list[str]):
                 })
 
             if records:
-                insert_in_chunks(db, records)
-                print(f"   ✅ {len(records)} bougies insérées/mises à jour ({len(records)//CHUNK_SIZE + 1} chunk(s)).")
+                n_chunks = (len(records) - 1) // CHUNK_SIZE + 1
+                ok = insert_with_retry(records, ticker)
+                if ok:
+                    print(f"   ✅ {len(records)} bougies insérées/mises à jour ({n_chunks} chunk(s)).")
+                else:
+                    print(f"   ❌ {ticker} : échec après 3 tentatives — données non enregistrées.")
             else:
                 print(f"   ⚠️  Aucun enregistrement valide pour {ticker}")
 
         except Exception as e:
             print(f"   ❌ Erreur {ticker} : {e}")
-            db.rollback()
-        finally:
-            db.close()
 
         time.sleep(0.5)  # anti rate-limit Yahoo Finance
 
