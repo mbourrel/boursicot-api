@@ -160,9 +160,9 @@ def get_macro_cycle_history(db: Session = Depends(get_db)):
 
     try:
         fred  = Fred(api_key=api_key)
-        # Depuis jan 1997 : 13 mois de marge avant 1998 pour calculer les YoY dès jan 1998
-        # INDPRO disponible depuis 1919, CPIAUCSL depuis 1947 — pas de limite côté FRED
-        start = "1997-01-01"
+        # Le plus loin possible : CPIAUCSL démarre en jan 1947, INDPRO en 1919.
+        # On part de jan 1946 pour avoir 13 mois de marge et calculer les YoY dès début 1948.
+        start = "1946-01-01"
         end   = datetime.now()
         indpro = fred.get_series("INDPRO",   observation_start=start, observation_end=end).dropna()
         cpi    = fred.get_series("CPIAUCSL", observation_start=start, observation_end=end).dropna()
