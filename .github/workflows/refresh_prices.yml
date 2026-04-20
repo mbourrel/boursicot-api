@@ -1,0 +1,39 @@
+# Rafraîchit les cours OHLCV 3 fois par jour (midi, 18h, minuit heure de Paris).
+# Heure de Paris → UTC : été (CEST, UTC+2), hiver (CET, UTC+1)
+# On cible l'heure d'été pour ne jamais déclencher avant la clôture des marchés européens.
+#   Midi Paris (12h)   → 10h UTC
+#   18h   Paris        → 16h UTC
+#   Minuit Paris (00h) → 22h UTC (veille côté UTC)
+
+name: Refresh Prices
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # midi Paris (heure d'été)
+    - cron: '0 16 * * *'   # 18h Paris (heure d'été)
+    - cron: '0 22 * * *'   # minuit Paris (heure d'été)
+  workflow_dispatch:        # déclenchement manuel depuis l'interface GitHub si besoin
+
+jobs:
+  seed-prices:
+    name: Seed prices
+    runs-on: ubuntu-latest
+    timeout-minutes: 30     # sécurité : tue le job si yfinance bloque
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'      # met en cache les dépendances pour accélérer les runs suivants
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Lancer le seeding des prix
+        env:
+          SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
+        run: python seed_prices.py

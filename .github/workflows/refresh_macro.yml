@@ -1,0 +1,35 @@
+# Invalide le cache macro (cycle économique + liquidité M2/BTC) dans PostgreSQL.
+# Le prochain appel à /macro/cycle ou /macro/liquidity re-fetche depuis FRED/yfinance.
+# Tourne le lundi matin, 30 minutes après refresh_fundamentals pour ne pas saturer
+# les connexions à la DB simultanément.
+
+name: Refresh Macro Cache
+
+on:
+  schedule:
+    - cron: '30 6 * * 1'   # lundi 6h30 UTC = 7h30 Paris hiver
+  workflow_dispatch:
+
+jobs:
+  seed-macro:
+    name: Invalidate macro cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Invalider le cache macro
+        env:
+          SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
+        run: python seed_macro.py

@@ -1,0 +1,34 @@
+# Rafraîchit les données fondamentales (ratios, bilans, états financiers)
+# une fois par semaine, le lundi matin avant l'ouverture des marchés.
+# Lundi 7h Paris (heure d'hiver, CET) → 6h UTC
+
+name: Refresh Fundamentals
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'    # lundi 6h UTC = 7h Paris hiver / 8h Paris été
+  workflow_dispatch:
+
+jobs:
+  seed-fundamentals:
+    name: Seed fundamentals
+    runs-on: ubuntu-latest
+    timeout-minutes: 60     # les appels yfinance pour ~60 tickers peuvent prendre du temps
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Lancer le seeding des fondamentaux
+        env:
+          SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
+        run: python seed_fundamentals.py
