@@ -28,7 +28,26 @@ def seed_fundamentals():
 
             name        = info.get("shortName", ticker)
             sector      = info.get("sector", "Inconnu")
+            industry    = info.get("industry") or None
             description = info.get("longBusinessSummary", "Description non disponible.")
+            country     = info.get("country") or None
+            city        = info.get("city") or None
+            website     = info.get("website") or None
+            employees   = info.get("fullTimeEmployees") or None
+            exchange    = info.get("exchange") or None
+            currency    = info.get("currency") or None
+
+            # Date d'IPO : yfinance expose "ipoDate" sur certains titres,
+            # sinon on tente de récupérer la première date connue via history.
+            ipo_date = info.get("ipoDate") or None
+            if not ipo_date:
+                try:
+                    first_ts = info.get("firstTradeDateEpochUtc")
+                    if first_ts:
+                        from datetime import datetime, timezone
+                        ipo_date = datetime.fromtimestamp(first_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+                except Exception:
+                    pass
 
             market_analysis = [
                 {"name": "Capitalisation", "val": info.get("marketCap", 0),                                    "unit": "$"},
@@ -81,7 +100,15 @@ def seed_fundamentals():
             if company:
                 company.name = name
                 company.sector = sector
+                company.industry = industry
                 company.description = description
+                company.country = country
+                company.city = city
+                company.website = website
+                company.employees = employees
+                company.exchange = exchange
+                company.currency = currency
+                company.ipo_date = ipo_date
                 company.market_analysis = market_analysis
                 company.financial_health = financial_health
                 company.advanced_valuation = advanced_valuation
@@ -93,7 +120,10 @@ def seed_fundamentals():
                 company.cashflow_data = cashflow_data
             else:
                 company = Company(
-                    ticker=ticker, name=name, sector=sector, description=description,
+                    ticker=ticker, name=name, sector=sector, industry=industry,
+                    description=description, country=country, city=city,
+                    website=website, employees=employees, exchange=exchange,
+                    currency=currency, ipo_date=ipo_date,
                     market_analysis=market_analysis, financial_health=financial_health,
                     advanced_valuation=advanced_valuation, income_growth=income_growth,
                     balance_cash=balance_cash, risk_market=risk_market,

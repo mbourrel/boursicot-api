@@ -11,7 +11,15 @@ class Company(Base):
     ticker = Column(String, unique=True, index=True, nullable=False)
     name = Column(String)
     sector = Column(String)
+    industry = Column(String)
     description = Column(String)
+    country = Column(String)
+    city = Column(String)
+    website = Column(String)
+    employees = Column(Integer)
+    exchange = Column(String)
+    currency = Column(String)
+    ipo_date = Column(String)   # "YYYY-MM-DD" ou None
 
     market_analysis    = Column(JSON)
     financial_health   = Column(JSON)
