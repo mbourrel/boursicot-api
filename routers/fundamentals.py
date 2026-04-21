@@ -15,6 +15,12 @@ METRIC_CATEGORIES = [
     "risk_market",
 ]
 
+STMT_CATEGORIES = [
+    "income_stmt_data",
+    "balance_sheet_data",
+    "cashflow_data",
+]
+
 
 @router.get("/fundamentals")
 def get_fundamentals(db: Session = Depends(get_db)):
@@ -46,6 +52,22 @@ def get_sector_averages(sector: str, db: Session = Depends(get_db)):
             name: sum(vals) / len(vals)
             for name, vals in buckets.items()
             if vals
+        }
+
+    # Moyennes sectorielles pour les états financiers (valeur la plus récente = vals[0])
+    for stmt_cat in STMT_CATEGORIES:
+        buckets: dict[str, list[float]] = defaultdict(list)
+        for company in companies:
+            stmt = getattr(company, stmt_cat) or {}
+            items = stmt.get("items") or []
+            for item in items:
+                vals = item.get("vals") or []
+                if vals and vals[0] is not None and vals[0] != 0:
+                    buckets[item["name"]].append(vals[0])
+        result[stmt_cat] = {
+            name: sum(v) / len(v)
+            for name, v in buckets.items()
+            if v
         }
 
     return result

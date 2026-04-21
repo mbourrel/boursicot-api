@@ -38,7 +38,7 @@ def importer_donnees():
             market_analysis = [
                 {"name": "Capitalisation", "val": info.get("marketCap", 0), "unit": "$"},
                 {"name": "PER", "val": round(info.get("trailingPE", 0) or 0, 2), "unit": "x"},
-                {"name": "Rendement Div", "val": round((info.get("dividendYield", 0) or 0) * 100, 2), "unit": "%"}
+                {"name": "Rendement Div", "val": round((_dy := (info.get("dividendYield", 0) or 0)) if _dy > 0.5 else _dy * 100, 2), "unit": "%"}
             ]
             financial_health = [
                 {"name": "Marge Nette", "val": round((info.get("profitMargins", 0) or 0) * 100, 2), "unit": "%"},
