@@ -6,8 +6,8 @@ from fredapi import Fred
 from sqlalchemy.orm import Session
 
 from database import get_db
-from services.macro_service import get_cycle_data, get_liquidity_data, get_cycle_history
-from schemas.macro import MacroCycleOut, MacroCycleHistoryOut, MacroLiquidityOut
+from services.macro_service import get_cycle_data, get_liquidity_data, get_cycle_history, get_rates_data
+from schemas.macro import MacroCycleOut, MacroCycleHistoryOut, MacroLiquidityOut, MacroRatesOut
 
 router = APIRouter(prefix="/macro", tags=["macro"])
 
@@ -28,6 +28,12 @@ def get_macro_liquidity(db: Session = Depends(get_db)):
 def get_macro_cycle_history(db: Session = Depends(get_db)):
     """Historique mensuel du cycle depuis 1948 (~920 points). Cache 24 h."""
     return get_cycle_history(db)
+
+
+@router.get("/rates", response_model=MacroRatesOut)
+def get_macro_rates(db: Session = Depends(get_db)):
+    """Taux directeurs (Fed, BCE, BoE, BoJ) + rendements obligataires (US, DE, FR, UK). Cache 6 h."""
+    return get_rates_data(db)
 
 
 @router.get("/ping")

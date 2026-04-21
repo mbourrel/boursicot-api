@@ -133,6 +133,87 @@ def get_liquidity_data(db: Session) -> dict:
     return result
 
 
+# ── Taux directeurs & rendements obligataires ────────────────────────────────
+
+def get_rates_data(db: Session) -> dict:
+    cached = get_cached(db, "macro_rates", max_age_hours=6)
+    if cached:
+        return cached
+
+    fred = _get_fred()
+    end        = datetime.now()
+    start_cur  = end - timedelta(days=90)
+    start_hist = end - timedelta(days=2 * 365)
+
+    def _latest(series_id: str, start=start_cur):
+        """Retourne (valeur_actuelle, date_str) ou (None, None) en cas d'erreur."""
+        try:
+            s = fred.get_series(series_id, observation_start=start, observation_end=end).dropna()
+            if s.empty:
+                return None, None
+            return round(float(s.iloc[-1]), 3), s.index[-1].strftime("%Y-%m-%d")
+        except Exception:
+            return None, None
+
+    def _history(series_id: str):
+        """Retourne {dates, values} sur 2 ans ou listes vides en cas d'erreur."""
+        try:
+            s = fred.get_series(series_id, observation_start=start_hist, observation_end=end).dropna()
+            return {
+                "dates":  [d.strftime("%Y-%m-%d") for d in s.index],
+                "values": [round(float(v), 3) for v in s],
+            }
+        except Exception:
+            return {"dates": [], "values": []}
+
+    # ── Taux directeurs ──────────────────────────────────────────────────────
+    fed_rate,  fed_date  = _latest("DFF")
+    ecb_rate,  ecb_date  = _latest("ECBDFR")
+    boe_rate,  boe_date  = _latest("BOERUKM")
+    boj_rate,  boj_date  = _latest("IRSTCB01JPM156N")
+
+    # ── Rendements obligataires courants ─────────────────────────────────────
+    us2y,    us2y_date    = _latest("DGS2")
+    us10y,   us10y_date   = _latest("DGS10")
+    us30y,   us30y_date   = _latest("DGS30")
+    bund10y, bund10y_date = _latest("IRLTLT01DEM156N")
+    oat10y,  oat10y_date  = _latest("IRLTLT01FRM156N")
+    gilt10y, gilt10y_date = _latest("IRLTLT01GBM156N")
+
+    # ── Historiques pour graphiques ──────────────────────────────────────────
+    result = {
+        "central_banks": [
+            {"name": "Fed (US)",    "rate": fed_rate,  "last_update": fed_date},
+            {"name": "BCE",         "rate": ecb_rate,  "last_update": ecb_date},
+            {"name": "BoE (UK)",    "rate": boe_rate,  "last_update": boe_date},
+            {"name": "BoJ (Japon)", "rate": boj_rate,  "last_update": boj_date},
+        ],
+        "bond_yields": [
+            {"name": "US 2Y",      "rate": us2y,    "last_update": us2y_date},
+            {"name": "US 10Y",     "rate": us10y,   "last_update": us10y_date},
+            {"name": "US 30Y",     "rate": us30y,   "last_update": us30y_date},
+            {"name": "Bund 10Y",   "rate": bund10y, "last_update": bund10y_date},
+            {"name": "OAT 10Y",    "rate": oat10y,  "last_update": oat10y_date},
+            {"name": "Gilt 10Y",   "rate": gilt10y, "last_update": gilt10y_date},
+        ],
+        "history": {
+            "us2y":    _history("DGS2"),
+            "us10y":   _history("DGS10"),
+            "us30y":   _history("DGS30"),
+            "bund10y": _history("IRLTLT01DEM156N"),
+            "oat10y":  _history("IRLTLT01FRM156N"),
+        },
+        "yield_curve": _history("T10Y2Y"),
+    }
+
+    try:
+        set_cached(db, "macro_rates", result)
+    except Exception:
+        pass
+
+    return result
+
+
 # ── Historique du cycle ───────────────────────────────────────────────────────
 
 def get_cycle_history(db: Session) -> dict:
