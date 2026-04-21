@@ -27,14 +27,8 @@ def get_current_user(
         )
         return payload
     except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expiré",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # Token expiré → on dégrade en guest plutôt que de bloquer (POC)
+        return {"sub": "guest", "is_guest": True, "reason": "token_expired"}
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalide ou manquant",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # Token malformé ou JWKS indisponible → guest
+        return {"sub": "guest", "is_guest": True, "reason": "token_invalid"}
