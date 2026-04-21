@@ -36,4 +36,4 @@ jobs:
       - name: Lancer le seeding des prix
         env:
           SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
-        run: python seed_prices.py
+        run: python seeds/seed_prices.py

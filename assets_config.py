@@ -21,7 +21,6 @@ ASSET_DICTIONARY: dict[str, str] = {
     "ACA.PA":    "Crédit Agricole",
     "BN.PA":     "Danone",
     "DSY.PA":    "Dassault Systèmes",
-    "EDF.PA":    "EDF",
     "ENGI.PA":   "Engie",
     "EL.PA":     "EssilorLuxottica",
     "ERF.PA":    "Eurofins Scientific",
@@ -48,8 +47,9 @@ ASSET_DICTIONARY: dict[str, str] = {
     "URW.PA":    "Unibail-Rodamco-Westfield",
     "VIE.PA":    "Veolia",
     "DG.PA":     "Vinci",
-    # ── Action bonus ────────────────────────────────────────────────────────
+    # ── Actions bonus ───────────────────────────────────────────────────────
     "ABVX.PA":   "Abivax",
+    "DIM.PA":    "Sartorius Stedim Biotech",
     # ── Les 7 Fantastiques (Magnificent 7) ──────────────────────────────────
     "AAPL":  "Apple",
     "MSFT":  "Microsoft",
