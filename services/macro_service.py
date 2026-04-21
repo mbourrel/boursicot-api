@@ -169,8 +169,10 @@ def get_rates_data(db: Session) -> dict:
     # ── Taux directeurs ──────────────────────────────────────────────────────
     fed_rate,  fed_date  = _latest("DFF")
     ecb_rate,  ecb_date  = _latest("ECBDFR")
-    boe_rate,  boe_date  = _latest("BOERUKM")
-    boj_rate,  boj_date  = _latest("IRSTCB01JPM156N")
+    # Séries OCDE mensuelles — fenêtre élargie à 6 mois pour couvrir les retards de publication
+    start_cb = end - timedelta(days=180)
+    boe_rate,  boe_date  = _latest("IRSTCB01GBM156N", start=start_cb)
+    boj_rate,  boj_date  = _latest("IRSTCB01JPM156N", start=start_cb)
 
     # ── Rendements obligataires courants ─────────────────────────────────────
     us2y,    us2y_date    = _latest("DGS2")
