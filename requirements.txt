@@ -39,3 +39,4 @@ uvicorn==0.43.0
 websockets==16.0
 yfinance==1.2.0
 fredapi==0.5.1
+PyJWT[crypto]==2.10.1
