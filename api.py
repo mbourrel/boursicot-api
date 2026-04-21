@@ -1,21 +1,29 @@
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
+from dependencies import get_current_user
 
 from routers import prices, fundamentals, search, macro, assets
 
 # Création des tables si elles n'existent pas
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Boursicot Pro API")
+app = FastAPI(
+    title="Boursicot Pro API",
+    dependencies=[Depends(get_current_user)],
+)
+
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(prices.router)
