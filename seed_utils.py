@@ -3,6 +3,7 @@ Utilitaires partagés entre les scripts de seeding.
 """
 import pandas as pd
 from collections import OrderedDict
+from assets_config import TICKERS  # noqa: F401 — ré-exporté pour les scripts de seed
 
 BALANCE_SHEET_MAP = OrderedDict([
     ("Total Assets",                            "Actif Total"),
@@ -48,28 +49,6 @@ CASHFLOW_MAP = OrderedDict([
     ("Net Income",                   "Résultat Net"),
     ("Change In Working Capital",    "Variation du BFR"),
 ])
-
-# Liste complète des tickers à traiter
-TICKERS = [
-    # --- CAC 40 ---
-    "AC.PA", "AI.PA", "AIR.PA", "MT.AS", "CS.PA", "BNP.PA", "EN.PA", "BVI.PA",
-    "CAP.PA", "CA.PA", "ACA.PA", "BN.PA", "DSY.PA", "ENGI.PA", "EL.PA",
-    "ERF.PA", "ENX.PA", "RMS.PA", "KER.PA", "OR.PA", "LR.PA", "MC.PA", "ML.PA",
-    "ORA.PA", "RI.PA", "PUB.PA", "RNO.PA", "SAF.PA", "SGO.PA", "SAN.PA", "SU.PA",
-    "GLE.PA", "STLAP.PA", "STMPA.PA", "HO.PA", "TTE.PA", "URW.PA", "VIE.PA", "DG.PA",
-    # --- action bonus ---
-    "ABVX.PA",
-    # --- LES 7 FANTASTIQUES (USA) ---
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-    # --- INDICES ---
-    "^FCHI", "^GSPC", "^IXIC", "^DJI", "^STOXX50E", "^N225", "^VIX", "BTC-USD",
-    # --- MÉTAUX PRÉCIEUX ---
-    "GC=F", "SI=F",
-    # --- ÉNERGIE ---
-    "CL=F", "BZ=F", "NG=F",
-    # --- MATIÈRES PREMIÈRES AGRICOLES ---
-    "ZC=F", "ZW=F", "CT=F",
-]
 
 
 def parse_financial_df(df, name_map):

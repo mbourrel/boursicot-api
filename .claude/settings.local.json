@@ -4,7 +4,8 @@
       "Read(//c/Users/mateo/boursicot-front/**)",
       "Bash(git -C /c/Users/mateo/boursicot-api remote -v)",
       "Bash(git -C /c/Users/mateo/boursicot-front remote -v)",
-      "Read(//c/Users/mateo/.claude/projects/c--Users-mateo-boursicot-api/memory/**)"
+      "Read(//c/Users/mateo/.claude/projects/c--Users-mateo-boursicot-api/memory/**)",
+      "Bash(grep -n \"seed_utils\\\\|from seed\\\\|import seed\" C:/Users/mateo/boursicot-api/seed*.py)"
     ],
     "additionalDirectories": [
       "C:\\Users\\mateo\\boursicot-front\\src\\components",

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
 
-from routers import prices, fundamentals, search, macro
+from routers import prices, fundamentals, search, macro, assets
 
 # Création des tables si elles n'existent pas
 models.Base.metadata.create_all(bind=engine)
@@ -22,6 +22,7 @@ app.include_router(prices.router)
 app.include_router(fundamentals.router)
 app.include_router(search.router)
 app.include_router(macro.router)
+app.include_router(assets.router)
 
 
 @app.get("/")
