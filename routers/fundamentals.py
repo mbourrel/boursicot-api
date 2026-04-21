@@ -1,15 +1,54 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
+from collections import defaultdict
 import models
 
 router = APIRouter(prefix="/api", tags=["fundamentals"])
+
+METRIC_CATEGORIES = [
+    "market_analysis",
+    "financial_health",
+    "advanced_valuation",
+    "income_growth",
+    "balance_cash",
+    "risk_market",
+]
 
 
 @router.get("/fundamentals")
 def get_fundamentals(db: Session = Depends(get_db)):
     """Récupère la liste des entreprises et leurs indicateurs financiers complets."""
     return db.query(models.Company).all()
+
+
+@router.get("/fundamentals/sector-averages/{sector}")
+def get_sector_averages(sector: str, db: Session = Depends(get_db)):
+    """
+    Retourne la moyenne sectorielle de chaque métrique pour un secteur donné.
+    Format : { "market_analysis": { "P/E Ratio": 25.3, ... }, ... }
+    """
+    companies = db.query(models.Company).filter(models.Company.sector == sector).all()
+    if not companies:
+        return {}
+
+    result = {}
+    for cat in METRIC_CATEGORIES:
+        # Accumule les valeurs par nom de métrique
+        buckets: dict[str, list[float]] = defaultdict(list)
+        for company in companies:
+            metrics = getattr(company, cat) or []
+            for m in metrics:
+                val = m.get("val")
+                if val is not None and val != 0:
+                    buckets[m["name"]].append(val)
+        result[cat] = {
+            name: sum(vals) / len(vals)
+            for name, vals in buckets.items()
+            if vals
+        }
+
+    return result
 
 
 @router.get("/fundamentals/{ticker}")
