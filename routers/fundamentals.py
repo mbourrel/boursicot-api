@@ -73,6 +73,49 @@ def get_sector_averages(sector: str, db: Session = Depends(get_db)):
     return result
 
 
+@router.get("/fundamentals/sector-averages/{sector}/history")
+def get_sector_history(sector: str, db: Session = Depends(get_db)):
+    """
+    Retourne l'historique annuel des moyennes sectorielles pour les états financiers.
+    Format : {
+      "income_stmt_data": {
+        "Chiffre d'Affaires": { "2021": 120e9, "2022": 135e9, ... },
+        ...
+      },
+      ...
+    }
+    """
+    companies = db.query(models.Company).filter(models.Company.sector == sector).all()
+    if not companies:
+        return {}
+
+    result = {}
+    for stmt_cat in STMT_CATEGORIES:
+        # metric_name → year_str → [val, val, ...]
+        metric_history: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+        for company in companies:
+            stmt = getattr(company, stmt_cat) or {}
+            years = stmt.get("years") or []
+            items = stmt.get("items") or []
+            for item in items:
+                for i, year in enumerate(years):
+                    if i < len(item["vals"]):
+                        val = item["vals"][i]
+                        if val is not None and val != 0:
+                            year_key = str(year)[:4]
+                            metric_history[item["name"]][year_key].append(val)
+
+        result[stmt_cat] = {
+            name: {
+                year: sum(vals) / len(vals)
+                for year, vals in year_vals.items()
+            }
+            for name, year_vals in metric_history.items()
+        }
+
+    return result
+
+
 @router.get("/fundamentals/{ticker}")
 def get_company(ticker: str, db: Session = Depends(get_db)):
     """Récupère les données fondamentales d'une seule entreprise par son ticker exact."""

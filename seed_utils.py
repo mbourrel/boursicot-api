@@ -57,7 +57,7 @@ def parse_financial_df(df, name_map):
     """
     if df is None or df.empty:
         return None
-    sorted_cols = sorted(df.columns, reverse=True)[:4]
+    sorted_cols = sorted(df.columns, reverse=True)
     years = [str(col)[:10] for col in sorted_cols]
     items = []
     for en_name, fr_name in name_map.items():
