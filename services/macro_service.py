@@ -136,7 +136,7 @@ def get_liquidity_data(db: Session) -> dict:
 # ── Taux directeurs & rendements obligataires ────────────────────────────────
 
 def get_rates_data(db: Session) -> dict:
-    cached = get_cached(db, "macro_rates", max_age_hours=6)
+    cached = get_cached(db, "macro_rates_v2", max_age_hours=6)
     if cached:
         return cached
 
@@ -209,7 +209,7 @@ def get_rates_data(db: Session) -> dict:
     }
 
     try:
-        set_cached(db, "macro_rates", result)
+        set_cached(db, "macro_rates_v2", result)
     except Exception:
         pass
 
