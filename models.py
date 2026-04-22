@@ -34,6 +34,18 @@ class Company(Base):
     income_stmt_data   = Column(JSON)
     cashflow_data      = Column(JSON)
 
+    # Données de dividendes
+    # Format : {
+    #   "dividend_yield": float,        # rendement en %
+    #   "dividend_rate": float,         # dividende annuel en devise
+    #   "payout_ratio": float,          # ratio de distribution en %
+    #   "five_year_avg_yield": float,   # rendement moyen 5 ans en %
+    #   "ex_dividend_date": str,        # "YYYY-MM-DD"
+    #   "last_dividend_value": float,   # dernier dividende versé
+    #   "annual": {"years": [...], "items": [{"name": str, "vals": [...], "unit": "$"}]}
+    # }
+    dividends_data = Column(JSON)
+
 class Price(Base):
     __tablename__ = "prices"
 

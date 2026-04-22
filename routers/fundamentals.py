@@ -21,6 +21,14 @@ STMT_CATEGORIES = [
     "cashflow_data",
 ]
 
+# Champs scalaires de dividends_data à moyenner
+DIVIDEND_SCALAR_FIELDS = [
+    "dividend_yield",
+    "dividend_rate",
+    "payout_ratio",
+    "five_year_avg_yield",
+]
+
 
 @router.get("/fundamentals")
 def get_fundamentals(db: Session = Depends(get_db)):
@@ -70,6 +78,20 @@ def get_sector_averages(sector: str, db: Session = Depends(get_db)):
             if v
         }
 
+    # Moyennes sectorielles pour les dividendes
+    div_scalar_buckets: dict[str, list[float]] = defaultdict(list)
+    for company in companies:
+        dd = company.dividends_data or {}
+        for field in DIVIDEND_SCALAR_FIELDS:
+            val = dd.get(field)
+            if val is not None and val != 0:
+                div_scalar_buckets[field].append(float(val))
+    result["dividends_data"] = {
+        field: round(sum(vals) / len(vals), 2)
+        for field, vals in div_scalar_buckets.items()
+        if vals
+    }
+
     return result
 
 
@@ -112,6 +134,27 @@ def get_sector_history(sector: str, db: Session = Depends(get_db)):
             }
             for name, year_vals in metric_history.items()
         }
+
+    # Historique annuel des dividendes par secteur
+    year_div_buckets: dict[str, list[float]] = defaultdict(list)
+    for company in companies:
+        dd = company.dividends_data or {}
+        annual = dd.get("annual") or {}
+        years = annual.get("years") or []
+        items = annual.get("items") or []
+        for item in items:
+            vals = item.get("vals") or []
+            for i, year in enumerate(years):
+                if i < len(vals) and vals[i] is not None and vals[i] != 0:
+                    year_div_buckets[str(year)].append(float(vals[i]))
+
+    result["dividends_data"] = {
+        "annual_dividend": {
+            year: round(sum(vals) / len(vals), 4)
+            for year, vals in year_div_buckets.items()
+            if vals
+        }
+    }
 
     return result
 
