@@ -171,9 +171,8 @@ def get_rates_data(db: Session) -> dict:
     ecb_rate,  ecb_date  = _latest("ECBDFR")
     # BoE : IUDSOIA = SONIA (proxy quasi-parfait du Bank Rate, publié quotidiennement)
     boe_rate,  boe_date  = _latest("IUDSOIA")
-    # BoJ : fenêtre très large car la série OECD est publiée avec plusieurs mois de retard
-    start_boj = end - timedelta(days=3 * 365)
-    boj_rate,  boj_date  = _latest("IRSTCB01JPM156N", start=start_boj)
+    # BoJ : aucune série FRED fiable et récente — taux hardcodé (relevé jan 2025)
+    boj_rate,  boj_date  = 0.5, "2025-01-24"
 
     # ── Rendements obligataires courants ─────────────────────────────────────
     us2y,    us2y_date    = _latest("DGS2")
@@ -189,8 +188,7 @@ def get_rates_data(db: Session) -> dict:
             {"name": "Fed (US)",    "rate": fed_rate,  "last_update": fed_date,  "stale": False},
             {"name": "BCE",         "rate": ecb_rate,  "last_update": ecb_date,  "stale": False},
             {"name": "BoE (UK)",    "rate": boe_rate,  "last_update": boe_date,  "stale": False},
-            # IRSTCB01JPM156N (OCDE) n'est plus mis à jour sur FRED depuis fin 2023
-            {"name": "BoJ (Japon)", "rate": boj_rate,  "last_update": boj_date,  "stale": True},
+            {"name": "BoJ (Japon)", "rate": boj_rate,  "last_update": boj_date,  "stale": True},  # hardcodé
         ],
         "bond_yields": [
             {"name": "US 2Y",      "rate": us2y,    "last_update": us2y_date},
