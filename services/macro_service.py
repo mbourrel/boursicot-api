@@ -136,14 +136,14 @@ def get_liquidity_data(db: Session) -> dict:
 # ── Taux directeurs & rendements obligataires ────────────────────────────────
 
 def get_rates_data(db: Session) -> dict:
-    cached = get_cached(db, "macro_rates_v3", max_age_hours=6)
+    cached = get_cached(db, "macro_rates_v4", max_age_hours=6)
     if cached:
         return cached
 
     fred = _get_fred()
     end        = datetime.now()
     start_cur  = end - timedelta(days=90)
-    start_hist = end - timedelta(days=10 * 365)
+    start_hist = "1960-01-01"  # FRED retourne tout l'historique disponible selon la série
 
     def _latest(series_id: str, start=start_cur):
         """Retourne (valeur_actuelle, date_str) ou (None, None) en cas d'erreur."""
@@ -209,7 +209,7 @@ def get_rates_data(db: Session) -> dict:
     }
 
     try:
-        set_cached(db, "macro_rates_v3", result)
+        set_cached(db, "macro_rates_v4", result)
     except Exception:
         pass
 
