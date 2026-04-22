@@ -52,3 +52,41 @@ def macro_ping():
         return {"status": "ok", "fred_key_valid": True, "sample_points": len(test)}
     except Exception as exc:
         return {"status": "error", "detail": str(exc)}
+
+
+@router.get("/debug/cb-series")
+def debug_cb_series():
+    """Diagnostic temporaire : teste les séries FRED candidates pour BoE et BoJ."""
+    api_key = os.getenv("FRED_API_KEY")
+    if not api_key:
+        return {"error": "FRED_API_KEY manquant"}
+
+    fred = Fred(api_key=api_key)
+    end   = datetime.now()
+    start = end - timedelta(days=365)
+
+    candidates = [
+        ("BoE", "IRSTCB01GBM156N"),
+        ("BoE", "BOERUKM"),
+        ("BoE", "INTGBRSTM193N"),
+        ("BoE", "IUDSOIA"),
+        ("BoJ", "IRSTCB01JPM156N"),
+        ("BoJ", "INTJPNSTM193N"),
+        ("BoJ", "IRSTJPRESXNPT"),
+    ]
+
+    results = []
+    for bank, sid in candidates:
+        try:
+            s = fred.get_series(sid, observation_start=start, observation_end=end).dropna()
+            results.append({
+                "bank": bank, "series": sid,
+                "status": "empty" if s.empty else "ok",
+                "last_value": None if s.empty else round(float(s.iloc[-1]), 3),
+                "last_date": None if s.empty else s.index[-1].strftime("%Y-%m-%d"),
+                "n_points": len(s),
+            })
+        except Exception as e:
+            results.append({"bank": bank, "series": sid, "status": "error", "detail": str(e)})
+
+    return {"results": results}
