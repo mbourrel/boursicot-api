@@ -66,14 +66,15 @@ def debug_cb_series():
     start = end - timedelta(days=365)
 
     candidates = [
-        ("BoE", "IRSTCB01GBM156N"),
-        ("BoE", "BOERUKM"),
-        ("BoE", "INTGBRSTM193N"),
-        ("BoE", "IUDSOIA"),
-        ("BoJ", "IRSTCB01JPM156N"),
-        ("BoJ", "INTJPNSTM193N"),
-        ("BoJ", "IRSTJPRESXNPT"),
+        ("BoE", "IUDSOIA"),           # SONIA – proxy Bank Rate – OK
+        # BoJ – fenêtre 3 ans pour couvrir les longs délais de publication
+        ("BoJ", "IRSTCB01JPM156N"),   # OECD Call Money Rate JP
+        ("BoJ", "BOJDPCRINJPY"),      # BoJ Discount Rate
+        ("BoJ", "IRLTLT01JPM156N"),   # JP 10Y gov bond (proxy)
+        ("BoJ", "JTRINTDRGPJPM"),     # Possible alias
+        ("BoJ", "MOPJJPY"),           # Possible alias
     ]
+    start = end - timedelta(days=3 * 365)  # 3 ans pour BoJ
 
     results = []
     for bank, sid in candidates:
