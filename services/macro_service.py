@@ -136,7 +136,7 @@ def get_liquidity_data(db: Session) -> dict:
 # ── Taux directeurs & rendements obligataires ────────────────────────────────
 
 def get_rates_data(db: Session) -> dict:
-    cached = get_cached(db, "macro_rates_v5", max_age_hours=6)
+    cached = get_cached(db, "macro_rates_v6", max_age_hours=6)
     if cached:
         return cached
 
@@ -178,9 +178,14 @@ def get_rates_data(db: Session) -> dict:
     us2y,    us2y_date    = _latest("DGS2")
     us10y,   us10y_date   = _latest("DGS10")
     us30y,   us30y_date   = _latest("DGS30")
+    # Taux 3 mois (marché monétaire) — FRED : DGS3MO (US) et IRLTST01 OCDE (Europe/UK)
+    us3m,    us3m_date    = _latest("DGS3MO")
     bund10y, bund10y_date = _latest("IRLTLT01DEM156N")
+    bund3m,  bund3m_date  = _latest("IRLTST01DEM156N")
     oat10y,  oat10y_date  = _latest("IRLTLT01FRM156N")
+    oat3m,   oat3m_date   = _latest("IRLTST01FRM156N")
     gilt10y, gilt10y_date = _latest("IRLTLT01GBM156N")
+    gilt3m,  gilt3m_date  = _latest("IRLTST01GBM156N")
 
     # ── Historiques pour graphiques ──────────────────────────────────────────
     result = {
@@ -194,22 +199,31 @@ def get_rates_data(db: Session) -> dict:
             {"name": "US 2Y",      "rate": us2y,    "last_update": us2y_date},
             {"name": "US 10Y",     "rate": us10y,   "last_update": us10y_date},
             {"name": "US 30Y",     "rate": us30y,   "last_update": us30y_date},
+            {"name": "US 3M",      "rate": us3m,    "last_update": us3m_date},
             {"name": "Bund 10Y",   "rate": bund10y, "last_update": bund10y_date},
+            {"name": "Bund 3M",    "rate": bund3m,  "last_update": bund3m_date},
             {"name": "OAT 10Y",    "rate": oat10y,  "last_update": oat10y_date},
+            {"name": "OAT 3M",     "rate": oat3m,   "last_update": oat3m_date},
             {"name": "Gilt 10Y",   "rate": gilt10y, "last_update": gilt10y_date},
+            {"name": "Gilt 3M",    "rate": gilt3m,  "last_update": gilt3m_date},
         ],
         "history": {
             "us2y":    _history("DGS2"),
             "us10y":   _history("DGS10"),
             "us30y":   _history("DGS30"),
+            "us3m":    _history("DGS3MO"),
             "bund10y": _history("IRLTLT01DEM156N"),
+            "bund3m":  _history("IRLTST01DEM156N"),
             "oat10y":  _history("IRLTLT01FRM156N"),
+            "oat3m":   _history("IRLTST01FRM156N"),
+            "gilt10y": _history("IRLTLT01GBM156N"),
+            "gilt3m":  _history("IRLTST01GBM156N"),
         },
         "yield_curve": _history("T10Y2Y"),
     }
 
     try:
-        set_cached(db, "macro_rates_v5", result)
+        set_cached(db, "macro_rates_v6", result)
     except Exception:
         pass
 
