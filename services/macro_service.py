@@ -143,7 +143,7 @@ def get_rates_data(db: Session) -> dict:
     fred = _get_fred()
     end        = datetime.now()
     start_cur  = end - timedelta(days=90)
-    start_hist = end - timedelta(days=2 * 365)
+    start_hist = end - timedelta(days=10 * 365)
 
     def _latest(series_id: str, start=start_cur):
         """Retourne (valeur_actuelle, date_str) ou (None, None) en cas d'erreur."""
