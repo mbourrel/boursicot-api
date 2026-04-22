@@ -31,6 +31,7 @@ class RatePoint(BaseModel):
     name: str
     rate: Optional[float] = None
     last_update: Optional[str] = None
+    stale: bool = False
 
 
 class HistorySeries(BaseModel):

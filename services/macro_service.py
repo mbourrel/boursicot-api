@@ -186,10 +186,11 @@ def get_rates_data(db: Session) -> dict:
     # ── Historiques pour graphiques ──────────────────────────────────────────
     result = {
         "central_banks": [
-            {"name": "Fed (US)",    "rate": fed_rate,  "last_update": fed_date},
-            {"name": "BCE",         "rate": ecb_rate,  "last_update": ecb_date},
-            {"name": "BoE (UK)",    "rate": boe_rate,  "last_update": boe_date},
-            {"name": "BoJ (Japon)", "rate": boj_rate,  "last_update": boj_date},
+            {"name": "Fed (US)",    "rate": fed_rate,  "last_update": fed_date,  "stale": False},
+            {"name": "BCE",         "rate": ecb_rate,  "last_update": ecb_date,  "stale": False},
+            {"name": "BoE (UK)",    "rate": boe_rate,  "last_update": boe_date,  "stale": False},
+            # IRSTCB01JPM156N (OCDE) n'est plus mis à jour sur FRED depuis fin 2023
+            {"name": "BoJ (Japon)", "rate": boj_rate,  "last_update": boj_date,  "stale": True},
         ],
         "bond_yields": [
             {"name": "US 2Y",      "rate": us2y,    "last_update": us2y_date},
