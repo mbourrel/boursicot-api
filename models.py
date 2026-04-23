@@ -46,6 +46,16 @@ class Company(Base):
     # }
     dividends_data = Column(JSON)
 
+    # Scores de lisibilité calculés à la volée (non persistés par défaut)
+    # Format : {
+    #   "health": float,      # Santé financière 0-10
+    #   "valuation": float,   # Valorisation 0-10
+    #   "growth": float,      # Croissance 0-10
+    #   "complexity": float,  # Complexité 0-10 (élevé = avancé)
+    #   "verdict": str        # "Excellent" | "Bon" | "Correct" | "Risqué" | "À éviter"
+    # }
+    scores = Column(JSON, nullable=True)
+
 class Price(Base):
     __tablename__ = "prices"
 

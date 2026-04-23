@@ -5,7 +5,15 @@
       "Bash(git -C /c/Users/mateo/boursicot-api remote -v)",
       "Bash(git -C /c/Users/mateo/boursicot-front remote -v)",
       "Read(//c/Users/mateo/.claude/projects/c--Users-mateo-boursicot-api/memory/**)",
-      "Bash(grep -n \"seed_utils\\\\|from seed\\\\|import seed\" C:/Users/mateo/boursicot-api/seed*.py)"
+      "Bash(grep -n \"seed_utils\\\\|from seed\\\\|import seed\" C:/Users/mateo/boursicot-api/seed*.py)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(find /c/Users/mateo/boursicot-front/src -type f \\\\\\( -name \"*.jsx\" -o -name \"*.js\" \\\\\\) -exec basename {} \\\\;)",
+      "Bash(python migrate_add_dividends.py)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(grep -E \"\\\\.jsx$|^d\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\mateo\\boursicot-front\\src\\components",

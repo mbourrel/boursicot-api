@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from collections import defaultdict
 import models
+from scoring_logic import compute_scores
 
 router = APIRouter(prefix="/api", tags=["fundamentals"])
 
@@ -161,8 +162,25 @@ def get_sector_history(sector: str, db: Session = Depends(get_db)):
 
 @router.get("/fundamentals/{ticker}")
 def get_company(ticker: str, db: Session = Depends(get_db)):
-    """Récupère les données fondamentales d'une seule entreprise par son ticker exact."""
+    """Récupère les données fondamentales d'une seule entreprise par son ticker exact.
+    Inclut un objet `scores` calculé à la volée via les moyennes sectorielles."""
     company = db.query(models.Company).filter(models.Company.ticker == ticker).first()
     if not company:
         raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' introuvable")
-    return company
+
+    # Sérialiser en dict pour pouvoir y injecter les scores calculés
+    result = {col.name: getattr(company, col.name) for col in company.__table__.columns}
+
+    # Calcul des scores en utilisant les sociétés du même secteur (déjà en cache SQLAlchemy)
+    if company.sector:
+        sector_companies = (
+            db.query(models.Company)
+            .filter(models.Company.sector == company.sector)
+            .all()
+        )
+    else:
+        sector_companies = [company]
+
+    result["scores"] = compute_scores(company, sector_companies)
+
+    return result
