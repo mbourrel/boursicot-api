@@ -77,10 +77,13 @@ def seed_fundamentals():
                 {"name": "Ratio Liquidité",   "val": round(info.get("currentRatio", 0) or 0, 2),               "unit": "x"},
             ]
             risk_market = [
-                {"name": "Beta",             "val": round(info.get("beta", 0) or 0, 2),                         "unit": "x"},
-                {"name": "Plus Haut 52w",    "val": round(info.get("fiftyTwoWeekHigh", 0) or 0, 2),             "unit": "$"},
-                {"name": "Plus Bas 52w",     "val": round(info.get("fiftyTwoWeekLow", 0) or 0, 2),              "unit": "$"},
-                {"name": "Actions Shortées", "val": round((info.get("shortPercentOfFloat", 0) or 0) * 100, 2),  "unit": "%"},
+                {"name": "Beta",             "val": round(info.get("beta", 0) or 0, 2),                                                                         "unit": "x"},
+                {"name": "Plus Haut 52w",    "val": round(info.get("fiftyTwoWeekHigh", 0) or 0, 2),                                                             "unit": "$"},
+                {"name": "Plus Bas 52w",     "val": round(info.get("fiftyTwoWeekLow", 0) or 0, 2),                                                              "unit": "$"},
+                {"name": "Actions Shortées", "val": round((info.get("shortPercentOfFloat", 0) or 0) * 100, 2),                                                  "unit": "%"},
+                {"name": "Prix Actuel",      "val": round(info.get("currentPrice") or info.get("regularMarketPrice") or 0, 2),                                  "unit": "$"},
+                {"name": "MM50",             "val": round(info.get("fiftyDayAverage", 0) or 0, 2),                                                              "unit": "$"},
+                {"name": "MM200",            "val": round(info.get("twoHundredDayAverage", 0) or 0, 2),                                                         "unit": "$"},
             ]
 
             try:

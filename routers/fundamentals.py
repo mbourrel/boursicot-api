@@ -41,13 +41,13 @@ def get_fundamentals(db: Session = Depends(get_db)):
 def get_sector_averages(sector: str, db: Session = Depends(get_db)):
     """
     Retourne la moyenne sectorielle de chaque métrique pour un secteur donné.
-    Format : { "market_analysis": { "P/E Ratio": 25.3, ... }, ... }
+    Format : { "company_count": N, "market_analysis": { "P/E Ratio": 25.3, ... }, ... }
     """
     companies = db.query(models.Company).filter(models.Company.sector == sector).all()
     if not companies:
         return {}
 
-    result = {}
+    result = {"company_count": len(companies)}
     for cat in METRIC_CATEGORIES:
         # Accumule les valeurs par nom de métrique
         buckets: dict[str, list[float]] = defaultdict(list)
