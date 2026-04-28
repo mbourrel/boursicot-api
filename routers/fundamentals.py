@@ -183,7 +183,8 @@ def get_company(ticker: str, db: Session = Depends(get_db)):
 
     result["scores"] = compute_scores(company, sector_companies)
 
-    # Prix actuel + variation journalière (2 dernières clôtures journalières)
+    # Prix actuel + variation journalière
+    # Source 1 : table prices (2 dernières clôtures journalières)
     last_prices = (
         db.query(models.Price)
         .filter(models.Price.ticker == ticker, models.Price.interval == "1D")
@@ -201,7 +202,10 @@ def get_company(ticker: str, db: Session = Depends(get_db)):
         else:
             result["daily_change_pct"] = None
     else:
-        result["close_price"] = None
+        # Source 2 (fallback) : "Prix Actuel" stocké dans risk_market
+        risk = company.risk_market or []
+        prix_item = next((m for m in risk if m.get("name") == "Prix Actuel"), None)
+        result["close_price"] = prix_item["val"] if prix_item and prix_item.get("val") else None
         result["daily_change_pct"] = None
 
     return result
