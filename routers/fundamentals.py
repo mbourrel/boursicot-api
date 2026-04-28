@@ -2,8 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from collections import defaultdict
+import os, httpx
 import models
 from scoring_logic import compute_scores
+
+FMP_API_KEY = os.getenv("FMP_API_KEY", "")
+FMP_BASE    = "https://financialmodelingprep.com/api/v3"
 
 router = APIRouter(prefix="/api", tags=["fundamentals"])
 
@@ -209,3 +213,77 @@ def get_company(ticker: str, db: Session = Depends(get_db)):
         result["daily_change_pct"] = None
 
     return result
+
+
+# ── Proxy FMP (test) ──────────────────────────────────────────────────────────
+@router.get("/fundamentals/fmp-proxy/{ticker}")
+def fmp_proxy(ticker: str):
+    """
+    Endpoint de test : interroge Financial Modeling Prep et retourne les données
+    dans le même format de réponse que /fundamentals/{ticker}.
+    Nécessite la variable d'environnement FMP_API_KEY.
+    Ne touche pas à la base de données locale.
+    """
+    if not FMP_API_KEY:
+        raise HTTPException(status_code=503, detail="FMP_API_KEY non configurée")
+
+    try:
+        with httpx.Client(timeout=10) as client:
+            profile  = client.get(f"{FMP_BASE}/profile/{ticker}",    params={"apikey": FMP_API_KEY}).json()
+            ratios   = client.get(f"{FMP_BASE}/ratios-ttm/{ticker}",  params={"apikey": FMP_API_KEY}).json()
+            growth   = client.get(f"{FMP_BASE}/financial-growth/{ticker}", params={"apikey": FMP_API_KEY, "limit": 1}).json()
+            quote    = client.get(f"{FMP_BASE}/quote/{ticker}",       params={"apikey": FMP_API_KEY}).json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur FMP : {e}")
+
+    p = profile[0]  if profile  else {}
+    r = ratios[0]   if ratios   else {}
+    g = growth[0]   if growth   else {}
+    q = quote[0]    if quote    else {}
+
+    return {
+        "ticker":   ticker,
+        "name":     p.get("companyName"),
+        "sector":   p.get("sector"),
+        "industry": p.get("industry"),
+        "currency": p.get("currency"),
+        "exchange": p.get("exchangeShortName"),
+        "website":  p.get("website"),
+        "description": p.get("description"),
+        # ── métriques scoring ──────────────────────────────────────────────
+        "market_analysis": [
+            {"name": "Capitalisation", "val": p.get("mktCap"),                                 "unit": "$"},
+            {"name": "PER",            "val": r.get("peRatioTTM"),                              "unit": "x"},
+            {"name": "Rendement Div",  "val": round((r.get("dividendYieldTTM") or 0) * 100, 2),"unit": "%"},
+        ],
+        "financial_health": [
+            {"name": "Marge Nette",         "val": round((r.get("netProfitMarginTTM") or 0) * 100, 2), "unit": "%"},
+            {"name": "ROE",                 "val": round((r.get("returnOnEquityTTM")  or 0) * 100, 2), "unit": "%"},
+            {"name": "Dette/Fonds Propres", "val": r.get("debtEquityRatioTTM"),                        "unit": "%"},
+        ],
+        "advanced_valuation": [
+            {"name": "Forward PE",    "val": r.get("forwardPETTM") or r.get("priceEarningsRatioTTM"), "unit": "x"},
+            {"name": "Price to Book", "val": r.get("priceToBookRatioTTM"),                            "unit": "x"},
+            {"name": "EV / EBITDA",   "val": r.get("enterpriseValueMultipleTTM"),                     "unit": "x"},
+            {"name": "PEG Ratio",     "val": r.get("priceEarningsToGrowthRatioTTM"),                  "unit": "x"},
+        ],
+        "income_growth": [
+            {"name": "Croissance CA",        "val": round((g.get("revenueGrowth")    or 0) * 100, 2), "unit": "%"},
+            {"name": "Croissance Bénéfices", "val": round((g.get("netIncomeGrowth")  or 0) * 100, 2), "unit": "%"},
+        ],
+        "balance_cash": [
+            {"name": "Ratio Liquidité", "val": r.get("currentRatioTTM"), "unit": "x"},
+        ],
+        "risk_market": [
+            {"name": "Beta",          "val": p.get("beta"),              "unit": "x"},
+            {"name": "Plus Haut 52w", "val": q.get("yearHigh"),          "unit": "$"},
+            {"name": "Plus Bas 52w",  "val": q.get("yearLow"),           "unit": "$"},
+            {"name": "Prix Actuel",   "val": q.get("price"),             "unit": "$"},
+        ],
+        # ── prix temps réel ──────────────────────────────────────────────
+        "close_price":       q.get("price"),
+        "daily_change_pct":  q.get("changesPercentage"),
+        # ── scores : non calculés ici, nécessitent les données sectorielles
+        "scores": None,
+        "_source": "fmp",
+    }
