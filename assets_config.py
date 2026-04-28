@@ -59,7 +59,7 @@ ASSET_DICTIONARY: dict[str, str] = {
     "NVDA":  "NVIDIA",
     "TSLA":  "Tesla",
     # ── Indices ──────────────────────────────────────────────────────────────
-    "^STOXX":   "STOXX Europe 600",
+    "^FCHI":    "CAC 40",
     "^GSPC":    "S&P 500",
     "^IXIC":    "Nasdaq Composite",
     "^DJI":     "Dow Jones",
