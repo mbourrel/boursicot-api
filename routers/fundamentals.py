@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from collections import defaultdict
-import os, httpx
+import os
+import httpx
 import models
 from scoring_logic import compute_scores
 
@@ -188,44 +189,11 @@ def get_company(ticker: str, db: Session = Depends(get_db)):
     result["scores"] = compute_scores(company, sector_companies)
 
     # ── Prix actuel + variation journalière ───────────────────────────────
-    # Source 1 (priorité) : FMP /stable/profile — temps réel si clé dispo
-    close_price      = None
-    daily_change_pct = None
+    # Source 1 (priorité) : live_price seedé en DB par le cron FMP 2x/jour
+    close_price      = company.live_price
+    daily_change_pct = company.live_change_pct
 
-    if FMP_API_KEY:
-        try:
-            with httpx.Client(timeout=5) as client:
-                resp = client.get(
-                    f"https://financialmodelingprep.com/stable/profile",
-                    params={"symbol": ticker, "apikey": FMP_API_KEY},
-                )
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, list) and data:
-                    p = data[0]
-                    close_price      = p.get("price")
-                    daily_change_pct = round(p.get("changePercentage") or 0, 2) if p.get("changePercentage") is not None else None
-        except Exception:
-            pass  # timeout ou erreur réseau → on passe aux fallbacks
-
-    # Source 2 : table prices (2 dernières clôtures journalières)
-    if close_price is None:
-        last_prices = (
-            db.query(models.Price)
-            .filter(models.Price.ticker == ticker, models.Price.interval == "1D")
-            .order_by(models.Price.date.desc())
-            .limit(2)
-            .all()
-        )
-        if last_prices:
-            close_price = last_prices[0].close_price
-            if len(last_prices) >= 2 and last_prices[1].close_price:
-                prev = last_prices[1].close_price
-                daily_change_pct = round(
-                    ((last_prices[0].close_price - prev) / prev) * 100, 2
-                )
-
-    # Source 3 : "Prix Actuel" seedé dans risk_market
+    # Source 2 (fallback) : "Prix Actuel" seedé dans risk_market
     if close_price is None:
         risk      = company.risk_market or []
         prix_item = next((m for m in risk if m.get("name") == "Prix Actuel"), None)

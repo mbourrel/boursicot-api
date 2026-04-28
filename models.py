@@ -34,6 +34,11 @@ class Company(Base):
     income_stmt_data   = Column(JSON)
     cashflow_data      = Column(JSON)
 
+    # Prix live (seedé par cron FMP 2x/jour)
+    live_price      = Column(Float)
+    live_change_pct = Column(Float)
+    live_price_at   = Column(DateTime)
+
     # Données de dividendes
     # Format : {
     #   "dividend_yield": float,        # rendement en %

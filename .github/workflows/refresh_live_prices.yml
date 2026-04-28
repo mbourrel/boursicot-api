@@ -1,0 +1,39 @@
+# Rafraîchit les prix live (FMP) 2x/jour :
+#   - 09h00 Paris (07h00 UTC été) — ouverture Euronext
+#   - 17h30 Paris (15h30 UTC été) — clôture Euronext
+#
+# Budget : 63 tickers × 2 runs = 126 calls FMP/jour (limite : 250)
+# Supporte jusqu'à 125 tickers avant d'atteindre la limite.
+
+name: Refresh Live Prices (FMP)
+
+on:
+  schedule:
+    - cron: '0 7 * * 1-5'    # 09h00 Paris (lun-ven, heure d'été)
+    - cron: '30 15 * * 1-5'  # 17h30 Paris (lun-ven, heure d'été)
+  workflow_dispatch:          # déclenchement manuel depuis GitHub si besoin
+
+jobs:
+  seed-live-prices:
+    name: Seed live prices via FMP
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Lancer le seed live prices
+        env:
+          SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: python seeds/seed_live_prices.py
