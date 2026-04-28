@@ -83,5 +83,5 @@ def seed_live_prices(tickers: list[str]):
 
 
 if __name__ == "__main__":
-    targets = sys.argv[1:] if len(sys.argv) > 1 else list(TICKERS.keys())
+    targets = sys.argv[1:] if len(sys.argv) > 1 else (list(TICKERS.keys()) if isinstance(TICKERS, dict) else list(TICKERS))
     seed_live_prices(targets)
