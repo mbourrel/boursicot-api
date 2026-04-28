@@ -183,4 +183,25 @@ def get_company(ticker: str, db: Session = Depends(get_db)):
 
     result["scores"] = compute_scores(company, sector_companies)
 
+    # Prix actuel + variation journalière (2 dernières clôtures journalières)
+    last_prices = (
+        db.query(models.Price)
+        .filter(models.Price.ticker == ticker, models.Price.interval == "1D")
+        .order_by(models.Price.date.desc())
+        .limit(2)
+        .all()
+    )
+    if last_prices:
+        result["close_price"] = last_prices[0].close_price
+        if len(last_prices) >= 2 and last_prices[1].close_price:
+            prev = last_prices[1].close_price
+            result["daily_change_pct"] = round(
+                ((last_prices[0].close_price - prev) / prev) * 100, 2
+            )
+        else:
+            result["daily_change_pct"] = None
+    else:
+        result["close_price"] = None
+        result["daily_change_pct"] = None
+
     return result
