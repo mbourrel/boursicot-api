@@ -15,8 +15,10 @@ from models import Base, ExchangeRate
 Base.metadata.create_all(bind=engine)
 
 FMP_API_KEY = os.getenv("FMP_API_KEY")
-FMP_BASE    = "https://financialmodelingprep.com/stable"
-PAIRS       = ["EURUSD", "GBPUSD", "JPYUSD", "CHFUSD"]
+# /api/v3/fx retourne toutes les paires forex en un seul appel
+# Format réponse : [{"ticker": "EUR/USD", "bid": 1.085, "ask": 1.086, ...}, ...]
+FMP_FX_URL  = "https://financialmodelingprep.com/api/v3/fx"
+PAIRS       = {"EURUSD", "GBPUSD", "JPYUSD", "CHFUSD"}
 
 
 def seed_exchange_rates():
@@ -24,11 +26,8 @@ def seed_exchange_rates():
         print("❌ FMP_API_KEY manquante — vérifiez les secrets GitHub / variables Render")
         sys.exit(1)
 
-    symbols = ",".join(PAIRS)
-    url = f"{FMP_BASE}/quotes/{symbols}"
-
     try:
-        resp = requests.get(url, params={"apikey": FMP_API_KEY}, timeout=15)
+        resp = requests.get(FMP_FX_URL, params={"apikey": FMP_API_KEY}, timeout=15)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
@@ -44,9 +43,19 @@ def seed_exchange_rates():
     now = datetime.utcnow()
 
     for item in data:
-        # FMP renvoie "symbol": "EURUSD" ou parfois "EUR/USD" selon l'endpoint
-        symbol = item.get("symbol", "").replace("/", "")
-        price  = item.get("price")
+        # ticker format: "EUR/USD" → on normalise en "EURUSD"
+        ticker = item.get("ticker", "").replace("/", "")
+        # taux mid = moyenne bid/ask ; fallback sur bid seul
+        bid  = item.get("bid")
+        ask  = item.get("ask")
+        if bid is not None and ask is not None:
+            price = (float(bid) + float(ask)) / 2
+        elif bid is not None:
+            price = float(bid)
+        else:
+            price = None
+
+        symbol = ticker
 
         if symbol not in PAIRS or price is None:
             continue
