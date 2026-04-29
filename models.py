@@ -51,6 +51,10 @@ class Company(Base):
     # }
     dividends_data = Column(JSON)
 
+    # Scores pré-calculés lors du seed hebdomadaire (compute_scores)
+    # Format : {health, valuation, growth, dividend, momentum, efficiency, complexity, global_score, verdict}
+    scores_json = Column(JSON, nullable=True)
+
 
 class Price(Base):
     __tablename__ = "prices"

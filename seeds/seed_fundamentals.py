@@ -8,6 +8,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
+from collections import defaultdict
 import yfinance as yf
 from database import SessionLocal, engine
 from models import Base, Company
@@ -15,6 +16,7 @@ from seed_utils import (
     TICKERS, BALANCE_SHEET_MAP, INCOME_STMT_MAP, CASHFLOW_MAP,
     parse_financial_df,
 )
+from scoring_logic import compute_scores
 
 Base.metadata.create_all(bind=engine)
 
@@ -145,6 +147,29 @@ def seed_fundamentals():
         time.sleep(0.5)
 
     print("\nFondamentaux chargés.")
+
+    # ── Passe de scoring ──────────────────────────────────────────────────────
+    # Pré-calcule les scores pour toutes les companies et les stocke en DB.
+    # Évite le recalcul N+1 à chaque requête GET /api/fundamentals/{ticker}.
+    print("\nCalcul et mise en cache des scores...")
+    all_companies = db.query(Company).all()
+
+    sector_map = defaultdict(list)
+    for c in all_companies:
+        sector_map[c.sector or "Inconnu"].append(c)
+
+    scored = 0
+    for company in all_companies:
+        sector_companies = sector_map.get(company.sector or "Inconnu", [company])
+        try:
+            company.scores_json = compute_scores(company, sector_companies)
+            scored += 1
+        except Exception as e:
+            print(f"   ⚠️  Score {company.ticker} : {e}")
+
+    db.commit()
+    print(f"✅ Scores mis en cache pour {scored}/{len(all_companies)} companies.")
+
     db.close()
 
 

@@ -175,18 +175,21 @@ def get_company(ticker: str, db: Session = Depends(get_db)):
 
     # Sérialiser en dict pour pouvoir y injecter les scores calculés
     result = {col.name: getattr(company, col.name) for col in company.__table__.columns}
+    result.pop("scores_json", None)  # champ interne, non exposé au frontend
 
-    # Calcul des scores en utilisant les sociétés du même secteur (déjà en cache SQLAlchemy)
-    if company.sector:
-        sector_companies = (
-            db.query(models.Company)
-            .filter(models.Company.sector == company.sector)
-            .all()
-        )
+    # Scores : lecture du cache pré-calculé, fallback compute à la volée si absent
+    if company.scores_json:
+        result["scores"] = company.scores_json
     else:
-        sector_companies = [company]
-
-    result["scores"] = compute_scores(company, sector_companies)
+        if company.sector:
+            sector_companies = (
+                db.query(models.Company)
+                .filter(models.Company.sector == company.sector)
+                .all()
+            )
+        else:
+            sector_companies = [company]
+        result["scores"] = compute_scores(company, sector_companies)
 
     # ── Prix actuel + variation journalière ───────────────────────────────
     # Source 1 (priorité) : live_price seedé en DB par le cron FMP 2x/jour
