@@ -7,7 +7,7 @@ from database import engine
 import models
 from dependencies import get_current_user
 
-from routers import prices, fundamentals, search, macro, assets
+from routers import prices, fundamentals, search, macro, assets, exchange_rates
 
 # Création des tables si elles n'existent pas
 models.Base.metadata.create_all(bind=engine)
@@ -33,6 +33,7 @@ app.include_router(fundamentals.router)
 app.include_router(search.router)
 app.include_router(macro.router)
 app.include_router(assets.router)
+app.include_router(exchange_rates.router)
 
 
 @app.get("/")

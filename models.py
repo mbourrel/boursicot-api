@@ -82,3 +82,13 @@ class MacroCache(Base):
     cache_key  = Column(String(255), unique=True, nullable=False, index=True)
     data_json  = Column(String,      nullable=False)
     updated_at = Column(DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ExchangeRate(Base):
+    """Taux de change mis à jour 1x/jour via FMP. Paires : EURUSD, GBPUSD, JPYUSD, CHFUSD."""
+    __tablename__ = "exchange_rates"
+
+    id         = Column(Integer,     primary_key=True, index=True)
+    pair       = Column(String(10),  unique=True, nullable=False, index=True)  # ex: "EURUSD"
+    rate       = Column(Float,       nullable=False)
+    updated_at = Column(DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)

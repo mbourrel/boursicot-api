@@ -1,0 +1,35 @@
+# Met à jour les taux de change (EURUSD, GBPUSD, JPYUSD, CHFUSD) via FMP.
+# 1 seul call FMP par exécution — budget total : 129/250 calls/jour.
+# Tourne en semaine à 8h UTC (10h Paris heure d'été) avant l'ouverture des marchés US.
+
+name: Refresh Exchange Rates
+
+on:
+  schedule:
+    - cron: '0 8 * * 1-5'   # lun–ven 8h UTC
+  workflow_dispatch:
+
+jobs:
+  seed-exchange-rates:
+    name: Seed exchange rates via FMP
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Mettre à jour les taux de change
+        env:
+          SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: python seeds/seed_exchange_rates.py
