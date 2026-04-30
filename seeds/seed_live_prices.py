@@ -25,10 +25,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from database import SessionLocal
 from models import Company
 from seed_utils import TICKERS
+from config import FMP_API_KEY, FMP_STABLE
 
-FMP_API_KEY    = os.getenv("FMP_API_KEY", "")
-FMP_PROFILE    = "https://financialmodelingprep.com/stable/profile"
-FMP_QUOTE      = "https://financialmodelingprep.com/stable/quote"
+FMP_PROFILE = f"{FMP_STABLE}/profile"
+FMP_QUOTE   = f"{FMP_STABLE}/quote"
 
 # Mapping Yahoo Finance → symbole FMP pour non-actions.
 # Les indices gardent leur ^ prefix (supporté nativement par FMP).

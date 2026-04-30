@@ -10,6 +10,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import time
 from collections import defaultdict
 import yfinance as yf
+
+
+def _fetch_info(ticker: str, max_retries: int = 3) -> dict:
+    """Appelle yf.Ticker(ticker).info avec backoff exponentiel (2s, 4s, 8s)."""
+    delay = 2
+    last_exc: Exception = RuntimeError("no attempts")
+    for attempt in range(1, max_retries + 1):
+        try:
+            return yf.Ticker(ticker).info
+        except Exception as e:
+            last_exc = e
+            if attempt < max_retries:
+                print(f"   ⚠️  {ticker} tentative {attempt}/{max_retries} — {e} (retry dans {delay}s)")
+                time.sleep(delay)
+                delay *= 2
+    raise last_exc
 from database import SessionLocal, engine
 from models import Base, Company
 from seed_utils import (
@@ -29,7 +45,7 @@ def seed_fundamentals():
         try:
             print(f"-> {ticker}...")
             stock = yf.Ticker(ticker)
-            info  = stock.info
+            info  = _fetch_info(ticker)
 
             name        = info.get("shortName", ticker)
             sector      = info.get("sector", "Inconnu")

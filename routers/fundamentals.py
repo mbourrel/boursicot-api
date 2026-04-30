@@ -2,13 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from collections import defaultdict
-import os
 import httpx
 import models
 from scoring_logic import compute_scores
-
-FMP_API_KEY = os.getenv("FMP_API_KEY", "")
-FMP_BASE    = "https://financialmodelingprep.com/api/v3"
+from config import FMP_API_KEY, FMP_V3 as FMP_BASE
 
 router = APIRouter(prefix="/api", tags=["fundamentals"])
 
