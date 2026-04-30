@@ -31,4 +31,4 @@ jobs:
       - name: Lancer le seeding des fondamentaux
         env:
           SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
-        run: python seed_fundamentals.py
+        run: python seeds/seed_fundamentals.py

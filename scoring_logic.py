@@ -9,7 +9,7 @@ Scores :
   - momentum   : Momentum technique (Prix vs MM50/MM200, Golden/Death cross)
   - efficiency : Efficacité (ROE + Marge Nette vs secteur + tendance historique)
   - complexity : Complexité perçue (Market Cap, Beta) — élevé = plus avancé
-  - verdict    : "Excellent" | "Bon" | "Correct" | "Risqué" | "À éviter"
+  - verdict    : "Profil Fort" | "Profil Solide" | "Profil Neutre" | "Profil Prudent" | "Profil Fragile"
 
 Pondérations Note Globale :
   health 25%  |  valuation 20%  |  growth 20%  |  efficiency 15%
@@ -325,11 +325,11 @@ def compute_scores(company, sector_companies: list) -> dict:
     )
 
     # Verdict basé sur la Note Globale
-    if global_score >= 7.5:   verdict = "Excellent"
-    elif global_score >= 6.0: verdict = "Bon"
-    elif global_score >= 4.5: verdict = "Correct"
-    elif global_score >= 3.0: verdict = "Risqué"
-    else:                     verdict = "À éviter"
+    if global_score >= 7.5:   verdict = "Profil Fort"
+    elif global_score >= 6.0: verdict = "Profil Solide"
+    elif global_score >= 4.5: verdict = "Profil Neutre"
+    elif global_score >= 3.0: verdict = "Profil Prudent"
+    else:                     verdict = "Profil Fragile"
 
     return {
         "health":       health,

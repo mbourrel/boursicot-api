@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, JSON, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, JSON, UniqueConstraint, Index
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
@@ -55,6 +55,10 @@ class Company(Base):
     # Format : {health, valuation, growth, dividend, momentum, efficiency, complexity, global_score, verdict}
     scores_json = Column(JSON, nullable=True)
 
+    __table_args__ = (
+        Index("ix_companies_sector", "sector"),
+    )
+
 
 class Price(Base):
     __tablename__ = "prices"
@@ -80,7 +84,7 @@ class MacroCache(Base):
 
     id         = Column(Integer,     primary_key=True, index=True)
     cache_key  = Column(String(255), unique=True, nullable=False, index=True)
-    data_json  = Column(String,      nullable=False)
+    data_json  = Column(JSON,        nullable=False)
     updated_at = Column(DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

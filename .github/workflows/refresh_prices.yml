@@ -1,6 +1,7 @@
-# Rafraîchit les cours OHLCV toutes les 2h entre 10h et minuit heure de Paris.
+# Rafraîchit les cours OHLCV toutes les 2h entre 8h et 22h heure de Paris.
 # Heure de Paris → UTC : été (CEST, UTC+2), hiver (CET, UTC+1)
 # On cible l'heure d'été (UTC+2) — 8 déclenchements par jour :
+#   08h Paris → 06h UTC
 #   10h Paris → 08h UTC
 #   12h Paris → 10h UTC
 #   14h Paris → 12h UTC
@@ -8,13 +9,12 @@
 #   18h Paris → 16h UTC
 #   20h Paris → 18h UTC
 #   22h Paris → 20h UTC
-#   00h Paris → 22h UTC
 
 name: Refresh Prices
 
 on:
   schedule:
-    - cron: '0 8,10,12,14,16,18,20,22 * * *'   # toutes les 2h, 10h–minuit Paris (heure d'été)
+    - cron: '0 6,8,10,12,14,16,18,20 * * *'   # toutes les 2h, 8h–22h Paris (heure d'été)
   workflow_dispatch:        # déclenchement manuel depuis l'interface GitHub si besoin
 
 jobs:

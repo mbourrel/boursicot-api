@@ -32,4 +32,4 @@ jobs:
       - name: Invalider le cache macro
         env:
           SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
-        run: python seed_macro.py
+        run: python seeds/seed_macro.py

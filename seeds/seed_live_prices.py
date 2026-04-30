@@ -120,7 +120,16 @@ def seed_live_prices(tickers: list[str]):
             time.sleep(0.1)
 
     db.close()
-    print(f"\nTermine : {ok} OK / {ko} echecs — {ok + ko} calls FMP utilises")
+    total_calls  = ok + ko
+    budget_used  = total_calls * 2          # 2 runs/jour max (9h + 17h30)
+    budget_left  = 250 - budget_used
+    budget_pct   = round(budget_used / 250 * 100)
+    warn         = " ⚠️  ATTENTION : budget dépassé !" if budget_used > 250 else ""
+    print(
+        f"\nTermine : {ok} OK / {ko} echecs — {total_calls} calls FMP utilises ce run\n"
+        f"Budget journalier estimé (2 runs) : {budget_used}/250 calls ({budget_pct}%) "
+        f"→ {budget_left} restants{warn}"
+    )
 
 
 if __name__ == "__main__":
