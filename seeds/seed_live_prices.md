@@ -29,6 +29,11 @@ Fait un GET FMP avec timeout 8s. Retourne `(price, change_pct)` ou `(None, None)
 ### `seed_live_prices(tickers)`
 Itère sur les tickers avec un `httpx.Client` partagé (keep-alive). Pour chaque ticker avec un prix valide, met à jour la Company correspondante en DB. Pause 0.1s entre tickers. Affiche un résumé OK/KO.
 
+En fin de run, affiche un **log de budget FMP estimé** :
+```
+Termine : 64 OK / 0 echecs — 64 calls FMP utilises ce run
+Budget journalier estimé (2 runs) : 128/250 calls (51%) → 122 restants
+```
 Budget FMP : 1 call par ticker → ~64 calls/run → ~128 calls/jour sur 250 autorisés (plan gratuit).
 
 ## Utilisé par

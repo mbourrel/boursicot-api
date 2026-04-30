@@ -5,7 +5,7 @@ Définit les quatre modèles SQLAlchemy qui constituent le schéma PostgreSQL de
 
 ## Dépendances
 - **Internes** : aucune
-- **Externes** : `sqlalchemy` (Column, types, UniqueConstraint, declarative_base), `datetime`
+- **Externes** : `sqlalchemy` (Column, types, UniqueConstraint, Index, declarative_base), `datetime`
 
 ## Fonctionnement
 
@@ -25,8 +25,9 @@ Table `prices` — historique OHLCV multi-intervalles.
 
 ### `MacroCache`
 Table `macro_cache` — cache PostgreSQL pour les endpoints `/macro/*`.
-- Colonnes : cache_key (unique), data_json (texte sérialisé), updated_at.
+- Colonnes : cache_key (unique), data_json (**JSONB** natif depuis 2026-04-30), updated_at.
 - Le TTL est géré par le service (`cache_service.py`), pas par la table elle-même.
+- Migré de `String` (TEXT sérialisé manuellement) vers `JSON` SQLAlchemy (JSONB Postgres) via `seeds/migrate_db.py`.
 
 ### `ExchangeRate`
 Table `exchange_rates` — taux de change courants (EURUSD, GBPUSD, JPYUSD, CHFUSD).
@@ -43,3 +44,5 @@ Table `exchange_rates` — taux de change courants (EURUSD, GBPUSD, JPYUSD, CHFU
 - `live_price_at` est stocké en UTC sans timezone (naïf) — cohérent avec `datetime.utcnow()` utilisé partout.
 - `scores_json` peut être `None` pour les tickers seedés avant l'introduction du scoring — le router `fundamentals` gère ce cas avec un fallback compute à la volée.
 - `Volume` est `BigInteger` : ne pas le mapper vers `int` Python sur 32 bits pour les tickers à fort volume.
+- `Company.__table_args__` contient `Index("ix_companies_sector", "sector")` — appliqué automatiquement sur les nouvelles bases via `create_all`, et sur l'existant via `seeds/migrate_db.py`.
+- `MacroCache.data_json` est désormais `Column(JSON)` — SQLAlchemy le mappe vers JSONB en Postgres. Ne plus utiliser `json.dumps/loads` manuel autour de cette colonne.

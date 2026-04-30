@@ -30,7 +30,10 @@ Moteur de scoring d'investissement : calcule 6 scores dimensionnels (0-10) + une
 Pondérations : health 25 %, valuation 20 %, growth 20 %, efficiency 15 %, dividend 10 %, momentum 10 %.
 (`complexity` n'est **pas** inclus dans la note globale — indicateur informatif uniquement.)
 
-Verdict : ≥7.5 → "Excellent" | ≥6.0 → "Bon" | ≥4.5 → "Correct" | ≥3.0 → "Risqué" | <3.0 → "À éviter".
+**Verdict (MIF2-compliant depuis 2026-04-30) :**
+≥7.5 → "Profil Fort" | ≥6.0 → "Profil Solide" | ≥4.5 → "Profil Neutre" | ≥3.0 → "Profil Prudent" | <3.0 → "Profil Fragile"
+
+Les anciens verdicts ("Excellent", "Bon", "À éviter") ont été renommés car ils constituaient un langage de recommandation d'investissement contraire à la directive MIF2.
 
 ### `compute_scores(company, sector_companies)`
 Fonction publique unique. Retourne un dict avec les 9 clés : health, valuation, growth, dividend, momentum, efficiency, complexity, global_score, verdict.

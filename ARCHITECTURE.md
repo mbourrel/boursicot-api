@@ -265,7 +265,7 @@ updated_at      DATETIME
 | Dividend | 10% | Rendement Div, Payout Ratio |
 | Momentum | 10% | Beta, Haut/Bas 52w |
 
-**Verdict :** Excellent (≥7.5) · Bon (≥6) · Correct (≥4.5) · Risqué (≥3) · À éviter
+**Verdict (MIF2-compliant) :** Profil Fort (≥7.5) · Profil Solide (≥6) · Profil Neutre (≥4.5) · Profil Prudent (≥3) · Profil Fragile (<3)
 **Complexité :** fonction de Market Cap + Beta → niveau d'investisseur requis
 
 ---
@@ -313,6 +313,18 @@ Avant : `FMP_API_KEY = os.getenv("FMP_API_KEY", "")` répété dans 3 fichiers. 
 ### Lightweight-charts vs TradingView Widget
 Open source, pas de paywall, ~500kb gzipped, customisation complète (outils dessin custom). Indicateurs (BB, ATR, MA) calculés côté client dans `usePrices.js`.
 
+### Rate limiting — slowapi (ajout 2026-04-30)
+`slowapi 0.1.9` configuré avec `default_limits=["120/minute"]` par IP. Monté via `app.state.limiter` + handler `RateLimitExceeded`. Protège contre les appels massifs sans bloquer les utilisateurs légitimes (120 req/min ≫ usage normal).
+
+### Verdicts MIF2 (ajout 2026-04-30)
+Les anciens verdicts ("Excellent", "Bon", "À éviter") constituaient un langage de recommandation d'investissement contraire à MIF2. Renommés en profils descriptifs ("Profil Fort/Fragile") qui mesurent l'entreprise sans orienter une décision d'achat/vente.
+
+### Index SQL companies(sector) (ajout 2026-04-30)
+`CREATE INDEX ix_companies_sector ON companies(sector)` — accélère les requêtes de moyennes sectorielles dans `sector-averages` et le fallback `compute_scores()`. Appliqué via `seeds/migrate_db.py`.
+
+### MacroCache.data_json STRING → JSONB (ajout 2026-04-30)
+`data_json` était stocké en TEXT (sérialisé manuellement via `json.dumps/loads`). Migré vers `JSONB` natif PostgreSQL : meilleure perf (parsing côté DB), validation automatique du JSON, suppression du code de sérialisation dans `cache_service.py`.
+
 ---
 
 ## 8. Points forts
@@ -327,6 +339,10 @@ Open source, pas de paywall, ~500kb gzipped, customisation complète (outils des
 8. **Fallback multi-niveaux** — scores_json → compute, get_cached → get_stale, live_price → risk_market
 9. **Macro sophistiquée** — cycle 4×4 depuis 1948, spreads souverains, liquidité M2/BTC normalisée
 10. **Auth dégradée** — Guest fallback → pas de blocage si Clerk indisponible
+11. **Rate limiting** — slowapi 120 req/min par IP, protection contre les appels massifs
+12. **MIF2 compliance** — verdicts en profils descriptifs + disclaimer visible sous chaque ScoreDashboard
+13. **MacroCache JSONB** — colonne native Postgres, plus de json.dumps/loads manuel
+14. **Index sector** — `ix_companies_sector` accélère les moyennes sectorielles
 
 ---
 
@@ -346,7 +362,7 @@ Open source, pas de paywall, ~500kb gzipped, customisation complète (outils des
 
 6. **BoJ hardcodé** — Taux Banque du Japon figé (jan 2025) dans CentralBanksThermometer.
 
-7. **Pas de rate limiting API** — Aucune protection contre les appels massifs côté frontend.
+7. ~~**Pas de rate limiting API**~~ — **Résolu 2026-04-30** : slowapi 120 req/min par IP.
 
 ### Couplages fragiles
 
@@ -363,7 +379,7 @@ Open source, pas de paywall, ~500kb gzipped, customisation complète (outils des
 | Risque | Sévérité | Détail |
 |--------|----------|--------|
 | JWT sans audience | Faible | `verify_aud=False` → guest fallback permissif (acceptable MVP) |
-| Pas de rate limiting | Moyen | Aucune protection contre appels massifs |
+| ~~Pas de rate limiting~~ | ~~Moyen~~ | **Résolu** : slowapi 120 req/min (2026-04-30) |
 | Search ILIKE | Faible | SQLAlchemy immunise l'injection SQL mais pas de validation longueur |
 
 ### Budget API
@@ -389,6 +405,19 @@ Open source, pas de paywall, ~500kb gzipped, customisation complète (outils des
 - ✅ config.py centralisation FMP
 - ✅ Retry exponentiel yfinance dans seed_fundamentals
 - ✅ Source labels (SourceTag) sur tous les panels
+
+### Implémenté (audit 2026-04-30)
+- ✅ Rate limiting slowapi 120 req/min par IP
+- ✅ CORS restreint à GET/OPTIONS (API read-only)
+- ✅ Verdicts MIF2 (Profil Fort/Solide/Neutre/Prudent/Fragile)
+- ✅ Disclaimer MIF2 dans Header.jsx + sous ScoreDashboard
+- ✅ Index SQL `ix_companies_sector`
+- ✅ MacroCache.data_json migré STRING → JSONB natif Postgres
+- ✅ cache_service.py nettoyé (plus de json.dumps/loads manuel)
+- ✅ useSectorHistory désactivé en mode débutant (économie d'appel API)
+- ✅ Budget FMP loggé en fin de run (estimation 2 runs/jour)
+- ✅ seeds/migrate_db.py — migration DDL idempotente
+- ✅ web-vitals mis à jour 2.x → 4.x
 
 ### Priorités restantes
 
