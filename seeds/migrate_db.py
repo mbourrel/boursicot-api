@@ -28,7 +28,7 @@ MIGRATIONS = [
         "CREATE INDEX IF NOT EXISTS ix_companies_sector ON companies(sector);",
     ),
     (
-        "macro_cache.data_json → JSONB",
+        "macro_cache.data_json -> JSONB",
         """
         ALTER TABLE macro_cache
           ALTER COLUMN data_json TYPE JSONB
@@ -40,7 +40,7 @@ MIGRATIONS = [
 def run():
     with engine.connect() as conn:
         for label, sql in MIGRATIONS:
-            print(f"  → {label}… ", end="", flush=True)
+            print(f"  > {label}... ", end="", flush=True)
             try:
                 conn.execute(text(sql))
                 conn.commit()
@@ -50,6 +50,6 @@ def run():
                 print(f"SKIP ({e})")
 
 if __name__ == "__main__":
-    print("🔧 Migrations DDL Boursicot")
+    print("Migrations DDL Boursicot")
     run()
-    print("✅ Terminé")
+    print("Termine")
