@@ -1,8 +1,8 @@
 # Boursicot Pro — Product Overview
 
-> **Dernière mise à jour :** 2026-04-28
+> **Dernière mise à jour :** 2026-04-30
 > **Mainteneur :** Mateo
-> **Stack :** React 19 / FastAPI / PostgreSQL / yFinance / Clerk Auth
+> **Stack :** React 19 / FastAPI / PostgreSQL Neon / yFinance / FMP / Clerk Auth
 
 ---
 
@@ -12,6 +12,8 @@ Boursicot Pro est une plateforme d'analyse financière pédagogique destinée au
 
 **Positionnement :** Entre le screener technique brut (type TradingView) et le conseiller financier humain. Boursicot explique *pourquoi* une métrique est importante, pas seulement *ce qu'elle vaut*.
 
+**Conformité MIF2 :** La plateforme fournit des informations à titre indicatif uniquement. Les scores mesurent la performance relative d'une entreprise dans son secteur — ils ne constituent pas un conseil en investissement. Le disclaimer est affiché en permanence dans le Header et sous chaque ScoreDashboard.
+
 ---
 
 ## 2. Architecture Technique
@@ -20,36 +22,51 @@ Boursicot Pro est une plateforme d'analyse financière pédagogique destinée au
 boursicot-front/          React 19 + Vite 8 + Clerk Auth
   src/
     components/
+      Header.jsx               Navigation, filtres, devise, thème, disclaimer MIF2
       Fundamentals.jsx         Vue principale analyse fondamentale (solo + comparaison)
       fundamentals/
-        ScoreDashboard.jsx     6 jauges SVG + radar chart + MethodologyModal
-        MetricInfo.jsx         Tooltip pédagogique 2 niveaux (C'est quoi / Pourquoi)
+        ScoreDashboard.jsx     6 jauges SVG + note globale + verdict + disclaimer MIF2
         MetricCard.jsx         Carte métrique avec comparaison sectorielle
-        MetricHistoryModal.jsx Graphique historique métrique vs secteur
-        MethodologyModal.jsx   Explication de la méthodologie des scores
+        MetricInfo.jsx         Tooltip pédagogique 2 niveaux (C'est quoi / Pourquoi)
         FinancialStatement.jsx Tableaux financiers historiques
+        MethodologyModal.jsx   Explication de la méthodologie des scores
+      TradingChart.jsx         Graphiques OHLCV avancés (lightweight-charts)
+      SimpleChart.jsx          Graphique ligne multi-actifs simplifié
+      MacroEnvironment.jsx     Agrège tous les widgets macro
+      EconomicClock.jsx        Jauge 4-phase + historique depuis 1948
+      LiquidityMonitor.jsx     M2 vs BTC normalisés
+      CentralBanksThermometer  Taux directeurs Fed/BCE/BoE/BoJ
+      YieldCurveChart.jsx      Spread 10Y-2Y + snapshot courbe
+      SovereignSpreadsChart    Rendements souverains multi-pays
+      AssetWindMatrix.jsx      Matrice phase -> classes d'actifs
       CompareBar.jsx           Sélecteur multi-actifs (jusqu'à 5)
-      Header.jsx               Navigation + toggle Débutant/Avancé
-      TradingChart.jsx         Graphiques OHLCV (lightweight-charts)
-      MacroEnvironment.jsx     Indicateurs macroéconomiques
-    constants/
-      metricExplanations.js    43 métriques documentées {what, why}
-      pillars.js               6 piliers de scoring avec métriques associées
+      SourceTag.jsx            Label source de données (10px, discret)
+    context/
+      CurrencyContext.jsx      Toggle devise LOCAL / EUR / USD
+      ThemeContext.jsx         Dark / light mode
     hooks/
       useFundamentals.js       Fetch multi-symboles parallèle
       useSectorAverages.js     Moyennes sectorielles
-      useSectorHistory.js      Historique sectoriel
+      useSectorHistory.js      Historique sectoriel (mode avancé uniquement)
+      usePrices.js             OHLCV + indicateurs côté client
+      useExchangeRates.js      Taux forex (silent fail)
+      useRetryFetch.js         Retry exponentiel générique
+    utils/
+      formatFinancialValue.js  Conversion devise + formatage montants
+      analytics.js             PostHog init + events + RGPD
+    api/                       Couche fetch centralisée (authFetch + Clerk token)
 
-boursicot-api/            FastAPI + SQLAlchemy + PostgreSQL
-  routers/
-    fundamentals.py       Données entreprises + scores temps réel
-    prices.py             OHLCV multi-intervalle
-    search.py             Recherche par nom/ticker
-    assets.py             Filtres TYPE/PAYS/SECTEUR
-    macro.py              Indicateurs macroéconomiques (cache 24h)
-  scoring_logic.py        Calcul des 6 piliers + global_score + verdict
-  models.py               Company, Price, MacroCache
-  seeds/                  Scripts de peuplement (yFinance)
+boursicot-api/            FastAPI + SQLAlchemy 2 + PostgreSQL Neon
+  api.py                  Entrée ASGI — CORS, rate limiting (120/min), auth globale
+  config.py               Constantes FMP centralisées (API_KEY, STABLE, V3)
+  models.py               Company (+ index sector), Price, MacroCache (JSONB), ExchangeRate
+  dependencies.py         JWT Clerk — guest fallback si token absent/invalide
+  scoring_logic.py        6 piliers + note globale + verdict (MIF2-compliant)
+  assets_config.py        Catalogue 64 tickers (source unique de vérité)
+  routers/                fundamentals, prices, search, assets, macro, exchange_rates
+  services/               macro_service, cache_service (JSONB natif)
+  seeds/                  seed_fundamentals, seed_live_prices, seed_prices,
+                          seed_macro, seed_exchange_rates, migrate_db
 ```
 
 ---
@@ -58,17 +75,18 @@ boursicot-api/            FastAPI + SQLAlchemy + PostgreSQL
 
 | Vue | Accès | Statut |
 |-----|-------|--------|
-| **Cours de Bourse** | Bouton "Cours de Bourse" | ✅ Fonctionnel — OHLCV 15m/1h/1D/1W, dessin technique |
-| **Analyse Fondamentale — Solo** | Sélection d'un actif | ✅ Fonctionnel — scores, métriques, états financiers |
-| **Analyse Fondamentale — Comparaison** | Bouton "+ Comparer" (max 5 actifs) | ✅ Fonctionnel — tableaux comparatifs, Synthèse Scores, Radar Chart |
-| **Indicateurs Macroéconomiques** | Bouton "Indicateurs Macro" | ✅ Fonctionnel — données macro cachées 24h |
-| **Analyse Avancée** | Toggle dans l'en-tête | ✅ Toggle binaire (Débutant/Avancé) — contrôle la visibilité des états financiers historiques |
+| **Cours de Bourse** | Bouton "Cours de bourse" | ✅ OHLCV 15m/1h/1D/1W, BB, ATR, outils dessin |
+| **Analyse Fondamentale — Solo** | Sélection d'un actif | ✅ Scores pré-calculés, métriques, états financiers |
+| **Analyse Fondamentale — Comparaison** | Bouton "+ Comparer" (max 5) | ✅ Tableaux comparatifs, Radar Chart 6 axes |
+| **Indicateurs Macroéconomiques** | Bouton "Indicateurs Macro" | ✅ Cycle, liquidité, taux, spreads souverains |
+| **Mode Débutant / Avancé** | Toggle dans le Header | ✅ Masque états financiers et appels API lourds en mode débutant |
+| **Multi-devise** | Sélecteur LOCAL / EUR / USD | ✅ Conversion temps réel via taux BCE (frankfurter.app) |
 
 ---
 
 ## 4. Système de Scoring
 
-Le scoring est calculé **en temps réel** à chaque appel `GET /api/fundamentals/{ticker}` par `compute_scores()`. Il compare l'entreprise aux autres acteurs de son secteur présents en base.
+Les scores sont **pré-calculés** lors du seed hebdomadaire et mis en cache dans `Company.scores_json`. L'API les lit directement sans recalcul — fallback compute à la volée uniquement si `scores_json` est null.
 
 ### 6 Piliers + Score Global
 
@@ -78,104 +96,148 @@ Le scoring est calculé **en temps réel** à chaque appel `GET /api/fundamental
 | **Valorisation** | 20 % | PER vs secteur, Forward PE |
 | **Croissance** | 20 % | Évolution CA YoY, Évolution Bénéfices YoY |
 | **Efficacité** | 15 % | ROE vs secteur, Marge vs secteur, tendance marge 5 ans |
-| **Dividende** | 10 % | Payout Ratio (optimal 40-60 %), Rendement vs secteur |
+| **Dividende** | 10 % | Payout Ratio (optimal 40–60 %), Rendement vs secteur |
 | **Momentum** | 10 % | Prix vs MM50, Prix vs MM200, Golden/Death Cross |
 
-**Complexité** (indicateur séparé) : Capitalisation + Beta → badge Simple / Modéré / Avancé.
+**Complexité** (indicateur séparé, hors note globale) : Capitalisation + Beta → badge Simple / Modéré / Avancé.
 
-**Verdict** : ≥ 7.5 → Excellent · ≥ 6.0 → Bon · ≥ 4.5 → Correct · ≥ 3.0 → Risqué · < 3.0 → À éviter.
+### Verdicts (MIF2-compliant)
 
-**Biais de groupe :** Signalé dans la `MethodologyModal` — si un secteur contient peu d'entreprises, le score est plus sensible aux extrêmes.
+| Score | Verdict | Couleur |
+|-------|---------|---------|
+| ≥ 7.5 | Profil Fort | `#26a69a` (teal) |
+| ≥ 6.0 | Profil Solide | `#26a69a` (teal) |
+| ≥ 4.5 | Profil Neutre | `#ff9800` (orange) |
+| ≥ 3.0 | Profil Prudent | `#ef5350` (rouge) |
+| < 3.0 | Profil Fragile | `#ef5350` (rouge) |
 
-### Palette de couleurs standardisée
+> Les anciens verdicts ("Excellent", "Bon", "À éviter") ont été renommés en avril 2026 pour se conformer à MIF2 : le langage actionnable (achat/vente implicite) est remplacé par des profils descriptifs.
 
-| Valeur | Couleur |
-|--------|---------|
-| ≥ 7 — Favorable | `#26a69a` (teal) |
-| 4–7 — Neutre | `#ff9800` (orange) |
-| < 4 — Défavorable | `#ef5350` (rouge) |
+### Disclaimer MIF2
+Affiché à deux niveaux :
+1. **Header** (toutes les vues) : ligne 10px permanente sous la barre de navigation.
+2. **ScoreDashboard** : ligne pleine largeur sous la grille de scores, toujours visible sans clic.
 
 ---
 
 ## 5. Couche Pédagogique
 
 ### Tooltips métriques (`MetricInfo.jsx`)
-- **43 métriques documentées** dans `metricExplanations.js`
+- **43 métriques documentées** dans `constants/metricExplanations.js`
 - Format : `{ what: "C'est quoi ?", why: "Pourquoi c'est important ?" }`
 - Rendu : tooltip portal positionné intelligemment (évite les débordements d'écran)
-- Lacune actuelle : métriques de `risk_market` (MM50, MM200, Prix Actuel) non couvertes
 
 ### Modal Méthodologie (`MethodologyModal.jsx`)
 - Accessible via "Définition des indicateurs" dans le `ScoreDashboard`
-- Contenu : 6 piliers, échelle de lecture, avertissement biais de groupe
-- Prop `sector` pour contextualiser le message
+- Contenu : 6 piliers, échelle de lecture, avertissement biais de groupe, disclaimer non-conseil
 
 ---
 
 ## 6. Données — Sources et Refresh
 
-| Donnée | Source | Fréquence de refresh |
-|--------|--------|----------------------|
-| OHLCV (15m, 1h, 1D, 1W) | yFinance → table `prices` | Cron GitHub Actions toutes les 2h (8h–22h Paris) |
-| Fondamentaux (ratios, états financiers) | yFinance → table `companies` | Manuel / à la demande |
-| Moyennes sectorielles | Calculées en temps réel depuis `companies` | Par requête |
-| Scores | Calculés en temps réel | Par requête |
-| Macro | APIs externes → `macro_cache` | Cache 24h |
+| Donnée | Source | Fréquence |
+|--------|--------|-----------|
+| OHLCV (15m, 1h, 1D, 1W) | yFinance → table `prices` | Cron 8×/jour (lun–ven) |
+| Fondamentaux + scores | yFinance + FMP → `companies` + `scores_json` | Cron 1×/semaine (lundi 7h UTC) |
+| Prix live (close + var %) | FMP `/stable/quote` + `/stable/profile` | Cron 2×/jour (9h + 17h30 Paris) |
+| Taux de change | frankfurter.app (BCE) → `exchange_rates` | Cron 1×/jour (lun–ven) |
+| Indicateurs macro | FRED + yFinance → `macro_cache` (JSONB) | Cache 24h, invalidé lundi 7h30 UTC |
 
-**Prix dans les cartes de comparaison :**
-- Source primaire : dernière clôture 1D dans `prices`
-- Fallback : "Prix Actuel" stocké dans `risk_market` lors du dernier seed fondamentaux
+**Budget FMP :** 64 calls/run × 2 runs/jour = 128/250 calls autorisés (51 %). Loggé en fin de chaque run `seed_live_prices`.
+
+**Source labeling :** chaque panel affiche sa source via `SourceTag.jsx` (FRED, Yahoo Finance, FMP, Boursicot).
 
 ---
 
 ## 7. Univers d'Actifs
 
-~63 tickers couverts à ce jour. Filtres disponibles : TYPE (action, ETF...), PAYS, SECTEUR.
+**64 tickers couverts :**
+- Actions CAC 40 : 40 tickers
+- Actions US (Mag7) : 7 tickers
+- Indices (^GSPC, ^IXIC, ^DJI, ^STOXX50E, ^N225, ^VIX…) : 7 tickers
+- Crypto : BTC-USD
+- Métaux précieux : Or, Argent
+- Énergie : Pétrole WTI, Brent, Gaz Naturel
+- Agricoles : Maïs, Blé, Coton
+
+Filtres disponibles dans le Header : TYPE, PAYS, SECTEUR.
 
 ---
 
-## 8. Authentification
+## 8. Sécurité & Conformité
 
-Clerk (SSO) — `ProtectedRoute` sur toutes les vues. Routes publiques : `/login`, `/register`.
+| Aspect | Implémentation |
+|--------|---------------|
+| **Auth** | Clerk JWT RS256 — guest fallback si token absent/invalide |
+| **Rate limiting** | slowapi 120 req/min par IP (depuis 2026-04-30) |
+| **CORS** | GET + OPTIONS uniquement — API read-only |
+| **SQL injection** | SQLAlchemy ORM — paramètres auto-échappés |
+| **Clés API** | Côté backend uniquement (FMP, FRED, Clerk JWKS) — jamais exposées au frontend |
+| **MIF2** | Verdicts descriptifs + disclaimer permanent (Header + ScoreDashboard) |
 
 ---
 
-## 9. Roadmap — Ce qui manque
+## 9. Roadmap
 
-### 🔴 Priorité haute
+### Complété (depuis la mise en production initiale)
+- ✅ Vues : Cours de bourse, Fondamentaux solo/comparaison, Macro
+- ✅ Scoring 6 piliers + ScoreDashboard orbit layout
+- ✅ Mode débutant / avancé
+- ✅ Score caching (scores_json en DB — élimine le N+1 sectoriel)
+- ✅ Multi-devise LOCAL/EUR/USD (CurrencyContext + frankfurter.app)
+- ✅ Source labels (SourceTag) sur tous les panels
+- ✅ Index PostgreSQL prices(ticker, interval, date DESC)
+- ✅ Migration DB Render → Neon (EU Frankfurt, serverless)
+- ✅ config.py centralisation FMP
+- ✅ Retry exponentiel yfinance (seed_fundamentals)
+- ✅ Rate limiting slowapi 120 req/min
+- ✅ CORS restreint GET/OPTIONS
+- ✅ Verdicts MIF2 (Profil Fort/Solide/Neutre/Prudent/Fragile)
+- ✅ Disclaimer MIF2 permanent (Header + ScoreDashboard)
+- ✅ Index SQL companies(sector)
+- ✅ MacroCache.data_json STRING → JSONB natif Postgres
+- ✅ useSectorHistory désactivé en mode débutant
+- ✅ Budget FMP loggé en fin de run
+
+### Priorité haute
 
 | Feature | Description | Composants impactés |
 |---------|-------------|---------------------|
-| **Profils utilisateurs** (Explorateur / Stratège) | Remplacer le toggle binaire Débutant/Avancé par un système de profil persistant. L'Explorateur voit les tooltips pédagogiques en priorité ; le Stratège voit les données brutes et les états financiers. | `Header.jsx`, `Fundamentals.jsx` (à découper), table `user_profile` à créer |
-| **Refactoring `Fundamentals.jsx`** | Fichier > 500 lignes, impossible à faire évoluer pour les profils. À diviser en `SoloView.jsx` + `ComparisonView.jsx` + sous-composants | `Fundamentals.jsx` |
-| **Prix temps réel fiables** | `daily_change_pct` reste null tant que `seed_prices` n'a pas tourné. Étudier un endpoint dédié `/api/quote/{ticker}` pour le dernier tick | `routers/prices.py`, `Fundamentals.jsx` |
+| **Tests automatisés** | pytest backend (seeds, endpoints, scoring, cache) + Testing Library frontend | Tous |
+| **Profils utilisateurs** (Explorateur / Stratège) | Remplacer le toggle binaire par un profil persistant. Explorateur = tooltips prioritaires ; Stratège = données brutes + états financiers | `Header.jsx`, `Fundamentals.jsx`, table `user_profile` |
+| **Refactoring `Fundamentals.jsx`** | 703 lignes, duplication solo/compare. Découper en `SoloView`, `ComparisonView`, `RadarChart` | `Fundamentals.jsx` |
 
-### 🟠 Priorité moyenne
+### Priorité moyenne
 
 | Feature | Description |
 |---------|-------------|
-| **Watchlist / Alertes** | Permettre à un utilisateur de suivre des actifs et recevoir des alertes sur seuils de score |
-| **Tooltips `risk_market`** | Documenter MM50, MM200, Prix Actuel dans `metricExplanations.js` |
-| **Cache scoring** | Mettre en cache `compute_scores()` (Redis ou colonne en base) pour éviter les recalculs sur les secteurs larges |
-| **Onboarding** | Parcours guidé première connexion adapté au profil choisi |
+| **Cache OHLCV** | Mettre en cache les prix historiques yfinance (MacroCache, TTL 15 min) pour éviter les appels répétés côté API |
+| **BoJ live** | Remplacer le taux Banque du Japon hardcodé par `FRED IRSTCB01JPM156N` |
+| **Monitoring FMP** | Webhook/email si budget > 85 % du quota journalier |
+| **Watchlist / Alertes** | Suivi d'actifs + alertes sur seuils de score |
+| **Versioning API** | Préfixer les routes `/api/v1/` pour préparer l'ouverture à des clients tiers |
 
-### 🟡 Priorité basse / Nice-to-have
+### Priorité basse / Nice-to-have
 
 | Feature | Description |
 |---------|-------------|
 | **Screener** | Filtrer les actifs par seuils de score (ex : Santé > 7 ET Valorisation > 6) |
-| **Export PDF** | Générer un rapport d'analyse pour un actif |
-| **Mode mobile** | L'UI actuelle n'est pas responsive sur petits écrans |
-| **Historique des scores** | Tracker l'évolution du score d'un actif dans le temps |
+| **Export PDF** | Rapport d'analyse pour un actif |
+| **Mode mobile** | L'UI n'est pas responsive sur petits écrans |
+| **Historique des scores** | Tracker l'évolution du score dans le temps |
+| **Normalisation devise dans scoring** | Rendre les scores comparables entre CAC 40 (EUR) et Mag7 (USD) |
 
 ---
 
-## 10. Dette Technique Connue
+## 10. Dette Technique
 
 | Sujet | Impact | Urgence |
 |-------|--------|---------|
-| `Fundamentals.jsx` monolithique (> 500 lignes) | Bloque l'ajout des profils | 🔴 Haute |
-| Scoring recalculé à chaque requête | Performance si > 500 sociétés/secteur | 🟠 Moyenne |
-| Pas de tests automatisés front ni back | Régressions silencieuses | 🟠 Moyenne |
-| `ASSET_COLORS` dupliqué entre `CompareBar.jsx` et `Fundamentals.jsx` | Désync possible | 🟡 Faible |
-| Tooltips manquants sur métriques `risk_market` | Expérience pédagogique incomplète | 🟡 Faible |
+| `Fundamentals.jsx` — 703 lignes, duplication solo/compare | Bloque l'ajout des profils utilisateurs | 🔴 Haute |
+| Absence de tests automatisés (front + back) | Régressions silencieuses après chaque changement | 🔴 Haute |
+| yfinance — SPOF sans SLA | Si Yahoo bloque le scraping, les fondamentaux ne sont plus mis à jour | 🟠 Moyenne |
+| Scores indices/crypto à 5.0 par défaut | Scoring inutilisable pour ^GSPC, BTCUSD, commodités | 🟠 Moyenne |
+| Momentum désynchronisé | MM50/MM200 stockés en JSON, non mis à jour par seed_live_prices | 🟠 Moyenne |
+| OHLCV — 5 jours glissants seulement | Gaps possibles si cron échoue, pas de vérification | 🟡 Faible |
+| `ASSET_COLORS` dupliqué `CompareBar` / `Fundamentals` | Risque de désynchronisation des couleurs | 🟡 Faible |
+| Tooltips manquants sur métriques `risk_market` | Expérience pédagogique incomplète (MM50, MM200) | 🟡 Faible |
