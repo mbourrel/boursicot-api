@@ -1,6 +1,8 @@
 """
-Met à jour les taux de change (EURUSD, GBPUSD, JPYUSD, CHFUSD) depuis FMP.
-1 seul appel API par exécution — budget : 1 call/jour sur 250.
+Met à jour les taux de change (EURUSD, GBPUSD, JPYUSD, CHFUSD).
+Source : frankfurter.app (taux BCE officiels) — gratuit, sans clé API,
+         0 impact sur le budget FMP.
+1 seul appel par exécution.
 
     python seeds/seed_exchange_rates.py
 """
@@ -14,50 +16,45 @@ from models import Base, ExchangeRate
 
 Base.metadata.create_all(bind=engine)
 
-FMP_API_KEY = os.getenv("FMP_API_KEY")
-# /api/v3/fx retourne toutes les paires forex en un seul appel
-# Format réponse : [{"ticker": "EUR/USD", "bid": 1.085, "ask": 1.086, ...}, ...]
-FMP_FX_URL  = "https://financialmodelingprep.com/api/v3/fx"
-PAIRS       = {"EURUSD", "GBPUSD", "JPYUSD", "CHFUSD"}
+# GET /latest?from=EUR&to=USD,GBP,JPY,CHF
+# Réponse : {"base":"EUR","date":"...","rates":{"USD":1.085,"GBP":0.85,"JPY":163,"CHF":0.94}}
+FRANKFURTER_URL = "https://api.frankfurter.app/latest"
 
 
 def seed_exchange_rates():
-    if not FMP_API_KEY:
-        print("❌ FMP_API_KEY manquante — vérifiez les secrets GitHub / variables Render")
-        sys.exit(1)
-
     try:
-        resp = requests.get(FMP_FX_URL, params={"apikey": FMP_API_KEY}, timeout=15)
+        resp = requests.get(
+            FRANKFURTER_URL,
+            params={"from": "EUR", "to": "USD,GBP,JPY,CHF"},
+            timeout=15,
+        )
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        print(f"❌ Erreur FMP : {e}")
+        print(f"❌ Erreur frankfurter.app : {e}")
         sys.exit(1)
 
-    if not data:
-        print("❌ Réponse FMP vide")
+    eur_rates = data.get("rates", {})
+    eur_usd = eur_rates.get("USD")
+    if not eur_usd:
+        print("❌ Taux EURUSD absent de la réponse")
         sys.exit(1)
+
+    # Dériver toutes les paires en USD depuis la base EUR
+    pairs = {
+        "EURUSD": eur_usd,
+        "GBPUSD": eur_usd / eur_rates["GBP"] if eur_rates.get("GBP") else None,
+        "JPYUSD": eur_usd / eur_rates["JPY"] if eur_rates.get("JPY") else None,
+        "CHFUSD": eur_usd / eur_rates["CHF"] if eur_rates.get("CHF") else None,
+    }
 
     db = SessionLocal()
     updated = 0
     now = datetime.utcnow()
 
-    for item in data:
-        # ticker format: "EUR/USD" → on normalise en "EURUSD"
-        ticker = item.get("ticker", "").replace("/", "")
-        # taux mid = moyenne bid/ask ; fallback sur bid seul
-        bid  = item.get("bid")
-        ask  = item.get("ask")
-        if bid is not None and ask is not None:
-            price = (float(bid) + float(ask)) / 2
-        elif bid is not None:
-            price = float(bid)
-        else:
-            price = None
-
-        symbol = ticker
-
-        if symbol not in PAIRS or price is None:
+    for symbol, price in pairs.items():
+        if price is None:
+            print(f"   ⚠️  {symbol} : taux absent")
             continue
 
         existing = db.query(ExchangeRate).filter(ExchangeRate.pair == symbol).first()
@@ -67,12 +64,12 @@ def seed_exchange_rates():
         else:
             db.add(ExchangeRate(pair=symbol, rate=float(price), updated_at=now))
 
-        print(f"   ✅ {symbol} = {price}")
+        print(f"   ✅ {symbol} = {price:.6f}")
         updated += 1
 
     db.commit()
     db.close()
-    print(f"\nTaux mis à jour : {updated}/{len(PAIRS)}")
+    print(f"\nTaux mis à jour : {updated}/{len(pairs)}")
 
 
 if __name__ == "__main__":
