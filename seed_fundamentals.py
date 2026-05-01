@@ -76,6 +76,16 @@ def seed_fundamentals():
                 {"name": "Free Cash Flow",    "val": info.get("freeCashflow", 0),                               "unit": "$"},
                 {"name": "Ratio Liquidité",   "val": round(info.get("currentRatio", 0) or 0, 2),               "unit": "x"},
             ]
+            # Performance 1 an depuis l'historique yfinance (fiable pour tous les types d'actifs)
+            try:
+                hist_1y = stock.history(period="1y")
+                if not hist_1y.empty and len(hist_1y) >= 2:
+                    perf_1y = round(float(hist_1y['Close'].iloc[-1] / hist_1y['Close'].iloc[0] - 1) * 100, 2)
+                else:
+                    perf_1y = None
+            except Exception:
+                perf_1y = None
+
             risk_market = [
                 {"name": "Beta",             "val": round(info.get("beta", 0) or 0, 2),                                                                         "unit": "x"},
                 {"name": "Plus Haut 52w",    "val": round(info.get("fiftyTwoWeekHigh", 0) or 0, 2),                                                             "unit": "$"},
@@ -84,6 +94,7 @@ def seed_fundamentals():
                 {"name": "Prix Actuel",      "val": round(info.get("currentPrice") or info.get("regularMarketPrice") or 0, 2),                                  "unit": "$"},
                 {"name": "MM50",             "val": round(info.get("fiftyDayAverage", 0) or 0, 2),                                                              "unit": "$"},
                 {"name": "MM200",            "val": round(info.get("twoHundredDayAverage", 0) or 0, 2),                                                         "unit": "$"},
+                {"name": "Performance 1an",  "val": perf_1y,                                                                                                    "unit": "%"},
             ]
 
             try:

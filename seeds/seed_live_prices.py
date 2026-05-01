@@ -17,6 +17,7 @@ import time
 from datetime import datetime, timezone
 
 import httpx
+import yfinance as yf
 from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
@@ -83,6 +84,52 @@ def fetch_price(client: httpx.Client, ticker: str) -> tuple[float | None, float 
     return None, None
 
 
+def _refresh_momentum(ticker: str) -> dict:
+    """
+    Calcule MM50, MM200 et Performance 1 an depuis yfinance history.
+    Utilisé pour les actifs non-actions (indices, crypto, matières premières)
+    dont les fondamentaux ne sont pas re-seedés fréquemment.
+    Retourne un dict avec les clés mm50, mm200, perf_1y (ou None si indisponible).
+    """
+    try:
+        hist = yf.Ticker(ticker).history(period="1y")
+        if hist.empty or len(hist) < 2:
+            return {}
+        closes = hist['Close']
+        mm50  = round(float(closes.tail(50).mean()), 4) if len(closes) >= 50  else None
+        mm200 = round(float(closes.mean()), 4)           if len(closes) >= 200 else None
+        perf  = round(float(closes.iloc[-1] / closes.iloc[0] - 1) * 100, 2)
+        return {"mm50": mm50, "mm200": mm200, "perf_1y": perf}
+    except Exception as e:
+        print(f"   WARN momentum yf {ticker}: {e}")
+        return {}
+
+
+def _update_risk_market(company, updates: dict) -> None:
+    """
+    Met à jour les entrées MM50, MM200 et Performance 1an dans le JSON risk_market.
+    Crée les entrées si elles n'existent pas encore.
+    """
+    if not updates:
+        return
+    risk = list(company.risk_market or [])
+    name_map = {
+        "mm50":   ("MM50",            "$"),
+        "mm200":  ("MM200",           "$"),
+        "perf_1y":("Performance 1an", "%"),
+    }
+    for key, (metric_name, unit) in name_map.items():
+        val = updates.get(key)
+        if val is None:
+            continue
+        entry = next((m for m in risk if m.get("name") == metric_name), None)
+        if entry:
+            entry["val"] = val
+        else:
+            risk.append({"name": metric_name, "val": val, "unit": unit})
+    company.risk_market = risk
+
+
 def seed_live_prices(tickers: list[str]):
     if not FMP_API_KEY:
         print("ERREUR : FMP_API_KEY non definie. Ajoutez-la dans .env ou les variables d'environnement.")
@@ -104,6 +151,13 @@ def seed_live_prices(tickers: list[str]):
                     company.live_price      = price
                     company.live_change_pct = change
                     company.live_price_at   = now
+
+                    # Refresh MM50/MM200/Perf1an via yfinance pour les non-actions
+                    # (indices, crypto, matières premières — pas de seed_fundamentals fréquent)
+                    if ticker in QUOTE_TICKERS:
+                        momentum = _refresh_momentum(ticker)
+                        _update_risk_market(company, momentum)
+
                     db.commit()
                     sign  = "+" if (change or 0) >= 0 else ""
                     fmp_s = FMP_TICKER_MAP.get(ticker, ticker)
