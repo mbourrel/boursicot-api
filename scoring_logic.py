@@ -17,6 +17,21 @@ Pondérations Note Globale :
 """
 
 
+# ── Scorabilité ───────────────────────────────────────────────────────────────
+
+def is_scorable(ticker: str) -> bool:
+    """
+    Retourne True si le scoring fondamental est applicable à ce ticker.
+    Indices (^), cryptos (-USD) et matières premières (=F) ne disposent pas
+    des données fondamentales nécessaires (bilans, ratios, secteur) et ne
+    doivent pas être scorés.
+    """
+    if ticker.startswith('^'):  return False  # Indices boursiers
+    if '-USD' in ticker:        return False  # Cryptomonnaies
+    if ticker.endswith('=F'):   return False  # Matières premières
+    return True
+
+
 # ── Utilitaires ────────────────────────────────────────────────────────────────
 
 def _get_val(metrics_list, name: str):

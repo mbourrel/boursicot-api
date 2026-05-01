@@ -14,6 +14,7 @@ Budget : 1 call FMP par ticker → 64 calls par run → 128/250 calls/jour.
 import sys
 import os
 import time
+from collections import defaultdict
 from datetime import datetime, timezone
 
 import httpx
@@ -27,6 +28,7 @@ from database import SessionLocal
 from models import Company
 from seed_utils import TICKERS
 from config import FMP_API_KEY, FMP_STABLE
+from scoring_logic import compute_scores, is_scorable
 
 FMP_PROFILE = f"{FMP_STABLE}/profile"
 FMP_QUOTE   = f"{FMP_STABLE}/quote"
@@ -152,11 +154,11 @@ def seed_live_prices(tickers: list[str]):
                     company.live_change_pct = change
                     company.live_price_at   = now
 
-                    # Refresh MM50/MM200/Perf1an via yfinance pour les non-actions
-                    # (indices, crypto, matières premières — pas de seed_fundamentals fréquent)
-                    if ticker in QUOTE_TICKERS:
-                        momentum = _refresh_momentum(ticker)
-                        _update_risk_market(company, momentum)
+                    # Refresh MM50/MM200/Perf1an via yfinance pour TOUS les tickers.
+                    # Pas de coût FMP — yfinance est gratuit.
+                    # Permet de garder le momentum des actions synchronisé avec le prix live.
+                    momentum = _refresh_momentum(ticker)
+                    _update_risk_market(company, momentum)
 
                     db.commit()
                     sign  = "+" if (change or 0) >= 0 else ""
@@ -172,6 +174,27 @@ def seed_live_prices(tickers: list[str]):
                 ko += 1
 
             time.sleep(0.1)
+
+    # ── Second passage : recompute scores_json avec MM50/MM200 frais ──────────
+    # Zéro appel FMP supplémentaire — utilise uniquement les données déjà en DB.
+    print("\nRecalcul des scores avec le momentum frais...")
+    all_companies = db.query(Company).all()
+    by_sector: dict[str, list] = defaultdict(list)
+    for c in all_companies:
+        if c.sector:
+            by_sector[c.sector].append(c)
+
+    score_ok = score_skip = 0
+    for company in all_companies:
+        if not is_scorable(company.ticker) or not company.sector:
+            score_skip += 1
+            continue
+        sector_companies = by_sector.get(company.sector, [company])
+        company.scores_json = compute_scores(company, sector_companies)
+        score_ok += 1
+
+    db.commit()
+    print(f"  Scores : {score_ok} recalculés / {score_skip} ignorés (non-scorables ou sans secteur)")
 
     db.close()
     total_calls  = ok + ko

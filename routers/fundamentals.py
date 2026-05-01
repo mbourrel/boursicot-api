@@ -4,7 +4,7 @@ from database import get_db
 from collections import defaultdict
 import httpx
 import models
-from scoring_logic import compute_scores
+from scoring_logic import compute_scores, is_scorable
 from config import FMP_API_KEY, FMP_V3 as FMP_BASE
 
 router = APIRouter(prefix="/api", tags=["fundamentals"])
@@ -174,8 +174,10 @@ def get_company(ticker: str, db: Session = Depends(get_db)):
     result = {col.name: getattr(company, col.name) for col in company.__table__.columns}
     result.pop("scores_json", None)  # champ interne, non exposé au frontend
 
-    # Scores : lecture du cache pré-calculé, fallback compute à la volée si absent
-    if company.scores_json:
+    # Scores : non applicable pour indices, cryptos et matières premières
+    if not is_scorable(ticker):
+        result["scores"] = {"is_scorable": False}
+    elif company.scores_json:
         result["scores"] = company.scores_json
     else:
         if company.sector:
