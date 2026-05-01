@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import httpx
 import yfinance as yf
 from dotenv import load_dotenv
+from sqlalchemy.orm.attributes import flag_modified
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -116,9 +117,10 @@ def _update_risk_market(company, updates: dict) -> None:
         return
     risk = list(company.risk_market or [])
     name_map = {
-        "mm50":   ("MM50",            "$"),
-        "mm200":  ("MM200",           "$"),
-        "perf_1y":("Performance 1an", "%"),
+        "mm50":        ("MM50",             "$"),
+        "mm200":       ("MM200",            "$"),
+        "perf_1y":     ("Performance 1an",  "%"),
+        "prix_actuel": ("Prix Actuel",      "$"),
     }
     for key, (metric_name, unit) in name_map.items():
         val = updates.get(key)
@@ -130,6 +132,7 @@ def _update_risk_market(company, updates: dict) -> None:
         else:
             risk.append({"name": metric_name, "val": val, "unit": unit})
     company.risk_market = risk
+    flag_modified(company, "risk_market")
 
 
 def seed_live_prices(tickers: list[str]):
@@ -158,6 +161,9 @@ def seed_live_prices(tickers: list[str]):
                     # Pas de coût FMP — yfinance est gratuit.
                     # Permet de garder le momentum des actions synchronisé avec le prix live.
                     momentum = _refresh_momentum(ticker)
+                    # Injecte aussi le prix live dans risk_market["Prix Actuel"]
+                    # pour que _score_momentum() utilise un prix frais (et non stale).
+                    momentum["prix_actuel"] = price
                     _update_risk_market(company, momentum)
 
                     db.commit()
@@ -205,7 +211,7 @@ def seed_live_prices(tickers: list[str]):
     print(
         f"\nTermine : {ok} OK / {ko} echecs — {total_calls} calls FMP utilises ce run\n"
         f"Budget journalier estimé (2 runs) : {budget_used}/250 calls ({budget_pct}%) "
-        f"→ {budget_left} restants{warn}"
+        f"-> {budget_left} restants{warn}"
     )
 
 
