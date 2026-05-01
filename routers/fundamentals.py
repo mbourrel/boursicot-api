@@ -162,6 +162,30 @@ def get_sector_history(sector: str, db: Session = Depends(get_db)):
     return result
 
 
+@router.get("/screener")
+def get_screener(db: Session = Depends(get_db)):
+    """
+    Endpoint léger pour le Screener Pédagogique.
+    Retourne uniquement les champs nécessaires : ticker, name, sector,
+    scores pré-calculés (scores_json), prix live et flag is_scorable.
+    Exclut tous les champs lourds (états financiers, métriques JSON détaillées).
+    """
+    companies = db.query(models.Company).all()
+    result = []
+    for c in companies:
+        scorable = is_scorable(c.ticker)
+        result.append({
+            "ticker":          c.ticker,
+            "name":            c.name,
+            "sector":          c.sector,
+            "is_scorable":     scorable,
+            "scores":          c.scores_json if scorable else None,
+            "live_price":      c.live_price,
+            "live_change_pct": c.live_change_pct,
+        })
+    return result
+
+
 @router.get("/fundamentals/{ticker}")
 def get_company(ticker: str, db: Session = Depends(get_db)):
     """Récupère les données fondamentales d'une seule entreprise par son ticker exact.
