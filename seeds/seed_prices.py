@@ -12,8 +12,10 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import yfinance as yf
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from database import SessionLocal, engine
 from models import Base, Price
@@ -27,6 +29,12 @@ PERIODS = {
     '1D':  '5d',    # ~5 bougies journalières
     '1h':  '7d',    # ~56 bougies horaires
     '15m': '2d',    # ~52 bougies 15min
+}
+
+# Politique de rétention — intervalles courts uniquement (1D et 1W conservés indéfiniment)
+RETENTION = {
+    '15m': timedelta(days=30),    # 1 mois glissant
+    '1h':  timedelta(days=365),   # 1 an glissant
 }
 
 
@@ -107,6 +115,47 @@ def seed_prices(tickers: list[str]):
         time.sleep(0.5)
 
     print("\nRafraîchissement terminé.")
+    purge_old_prices()
+
+
+def purge_old_prices():
+    """
+    Supprime les bougies intraday antérieures aux seuils de rétention.
+
+    Stratégie : DELETE ticker par ticker pour exploiter l'index unique
+    (ticker, date, interval) et maintenir des verrous courts sur la table —
+    chaque commit libère le verrou avant de passer au ticker suivant.
+
+    Intervalles 1D et 1W : conservés indéfiniment (aucune suppression).
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    cutoffs = {iv: now - delta for iv, delta in RETENTION.items()}
+
+    db = SessionLocal()
+    total = {iv: 0 for iv in RETENTION}
+    try:
+        for ticker in TICKERS:
+            for iv, cutoff in cutoffs.items():
+                result = db.execute(
+                    text(
+                        "DELETE FROM prices "
+                        "WHERE ticker = :ticker AND interval = :interval AND date < :cutoff"
+                    ),
+                    {"ticker": ticker, "interval": iv, "cutoff": cutoff},
+                )
+                total[iv] += result.rowcount
+            db.commit()   # verrou libéré ticker par ticker
+
+        print(
+            f"Purge rétention : "
+            f"{total['15m']} bougies 15m supprimées (> 30j) | "
+            f"{total['1h']} bougies 1h supprimées (> 1an)"
+        )
+    except Exception as e:
+        print(f"❌ Erreur purge rétention : {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":

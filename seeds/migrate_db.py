@@ -41,6 +41,15 @@ MIGRATIONS = [
         "companies.asset_class",
         "ALTER TABLE companies ADD COLUMN IF NOT EXISTS asset_class VARCHAR;",
     ),
+    (
+        "idx_prices_ticker_interval_date",
+        # Optimise les DELETE de la purge de rétention (ticker, interval, date range).
+        # L'index existant uix_ticker_date_interval (ticker, date, interval) couvre déjà
+        # les purges par ticker, mais cet index complémentaire accélère les scans
+        # sur (ticker, interval) → date en cas de requêtes analytiques futures.
+        "CREATE INDEX IF NOT EXISTS idx_prices_ticker_interval_date "
+        "ON prices(ticker, interval, date DESC);",
+    ),
 ]
 
 def run():
