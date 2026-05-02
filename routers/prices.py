@@ -30,7 +30,7 @@ def get_prices(
         prices = query.all()
 
     if not prices:
-        raise HTTPException(status_code=404, detail=f"Aucune donnée trouvée pour {ticker} en intervalle {interval}")
+        return []
 
     return [
         {
