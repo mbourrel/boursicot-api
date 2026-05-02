@@ -5,7 +5,10 @@ Utilisé par :
   - l'endpoint /api/assets (frontend fetch au démarrage)
 """
 
-# Ordre : CAC 40, Magnificient 7, Indices, Crypto, Matières premières
+# Tickers dont le type ne peut pas être déduit du pattern du ticker seul
+ETF_TICKERS: set[str] = {"CW8.PA"}
+
+# Ordre : CAC 40, Magnificient 7, Indices, Crypto, ETF, Matières premières
 ASSET_DICTIONARY: dict[str, str] = {
     # ── CAC 40 ──────────────────────────────────────────────────────────────
     "AC.PA":     "Accor",
@@ -68,6 +71,9 @@ ASSET_DICTIONARY: dict[str, str] = {
     "^VIX":     "VIX Volatility Index",
     # ── Crypto ───────────────────────────────────────────────────────────────
     "BTC-USD":  "Bitcoin",
+    "ETH-USD":  "Ethereum",
+    # ── ETF ──────────────────────────────────────────────────────────────────
+    "CW8.PA":   "Amundi MSCI World",
     # ── Métaux précieux ───────────────────────────────────────────────────────
     "GC=F": "Or (Gold)",
     "SI=F": "Argent (Silver)",
@@ -76,9 +82,7 @@ ASSET_DICTIONARY: dict[str, str] = {
     "BZ=F": "Pétrole Brent",
     "NG=F": "Gaz Naturel",
     # ── Matières premières agricoles ─────────────────────────────────────────
-    "ZC=F": "Maïs (Corn)",
     "ZW=F": "Blé (Wheat)",
-    "CT=F": "Coton",
 }
 
 # Liste de tickers dérivée — utilisée par les scripts de seeding

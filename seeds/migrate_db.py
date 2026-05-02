@@ -5,6 +5,8 @@ Opérations :
   1. CREATE INDEX IF NOT EXISTS ix_companies_sector — accélère les requêtes sectoriales
   2. ALTER TABLE macro_cache ALTER COLUMN data_json TYPE JSONB — remplace le TEXT brut
      par un vrai type JSON natif (meilleure perf + validation Postgres)
+  3. ALTER TABLE companies ADD COLUMN IF NOT EXISTS asset_class VARCHAR
+     — classe d'actif dérivée du quoteType yFinance ('stock'|'crypto'|'etf'|'index'|'commodity')
 
 Usage :
     python seeds/migrate_db.py
@@ -34,6 +36,10 @@ MIGRATIONS = [
           ALTER COLUMN data_json TYPE JSONB
           USING data_json::jsonb;
         """,
+    ),
+    (
+        "companies.asset_class",
+        "ALTER TABLE companies ADD COLUMN IF NOT EXISTS asset_class VARCHAR;",
     ),
 ]
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, JSON, UniqueConstraint, Index
+from sqlalchemy import Boolean, Column, Date, Integer, BigInteger, String, Float, DateTime, JSON, UniqueConstraint, Index
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
@@ -12,6 +12,7 @@ class Company(Base):
     name = Column(String)
     sector = Column(String)
     industry = Column(String)
+    asset_class = Column(String, nullable=True)  # 'stock'|'crypto'|'etf'|'index'|'commodity'
     description = Column(String)
     country = Column(String)
     city = Column(String)
@@ -96,3 +97,15 @@ class ExchangeRate(Base):
     pair       = Column(String(10),  unique=True, nullable=False, index=True)  # ex: "EURUSD"
     rate       = Column(Float,       nullable=False)
     updated_at = Column(DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ApiQuota(Base):
+    """Compteur journalier des appels FMP. Une ligne par jour, reset automatique à minuit."""
+    __tablename__ = "api_quotas"
+
+    id            = Column(Integer,  primary_key=True, index=True)
+    date          = Column(Date,     unique=True, nullable=False, index=True)
+    call_count    = Column(Integer,  default=0,     nullable=False)
+    alert_85_sent = Column(Boolean,  default=False, nullable=False)
+    alert_98_sent = Column(Boolean,  default=False, nullable=False)
+    updated_at    = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

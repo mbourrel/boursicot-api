@@ -33,8 +33,19 @@ from seed_utils import (
     parse_financial_df,
 )
 from scoring_logic import compute_scores
+from assets_config import ETF_TICKERS
 
 Base.metadata.create_all(bind=engine)
+
+# Mapping yFinance quoteType → classe interne Boursicot
+QUOTE_TYPE_MAP: dict[str, str] = {
+    "EQUITY":         "stock",
+    "CRYPTOCURRENCY": "crypto",
+    "ETF":            "etf",
+    "MUTUALFUND":     "etf",
+    "INDEX":          "index",
+    "FUTURE":         "commodity",
+}
 
 
 def seed_fundamentals():
@@ -67,6 +78,11 @@ def seed_fundamentals():
                         ipo_date = datetime.fromtimestamp(first_ts, tz=timezone.utc).strftime("%Y-%m-%d")
                 except Exception:
                     pass
+
+            quote_type  = info.get("quoteType", "")
+            asset_class = QUOTE_TYPE_MAP.get(quote_type, "stock")
+            if ticker in ETF_TICKERS:   # override manuel si yFinance classerait mal
+                asset_class = "etf"
 
             market_analysis = [
                 {"name": "Capitalisation", "val": info.get("marketCap", 0),                                    "unit": "$"},
@@ -120,6 +136,7 @@ def seed_fundamentals():
                 company.name = name
                 company.sector = sector
                 company.industry = industry
+                company.asset_class = asset_class
                 company.description = description
                 company.country = country
                 company.city = city
@@ -140,6 +157,7 @@ def seed_fundamentals():
             else:
                 company = Company(
                     ticker=ticker, name=name, sector=sector, industry=industry,
+                    asset_class=asset_class,
                     description=description, country=country, city=city,
                     website=website, employees=employees, exchange=exchange,
                     currency=currency, ipo_date=ipo_date,

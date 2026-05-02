@@ -179,6 +179,7 @@ def get_screener(db: Session = Depends(get_db)):
             "name":            c.name,
             "sector":          c.sector,
             "country":         c.country,
+            "asset_class":     c.asset_class,
             "is_scorable":     scorable,
             "scores":          c.scores_json if scorable else None,
             "live_price":      c.live_price,

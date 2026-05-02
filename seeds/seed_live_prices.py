@@ -30,16 +30,18 @@ from models import Company
 from seed_utils import TICKERS
 from config import FMP_API_KEY, FMP_STABLE
 from scoring_logic import compute_scores, is_scorable
+from utils.fmp_monitor import check_and_increment, get_count
 
 FMP_PROFILE = f"{FMP_STABLE}/profile"
 FMP_QUOTE   = f"{FMP_STABLE}/quote"
 
 # Mapping Yahoo Finance → symbole FMP pour non-actions.
 # Les indices gardent leur ^ prefix (supporté nativement par FMP).
-# Les actions n'ont pas besoin de mapping (même symbole dans les deux systèmes).
+# Les actions et ETF européens n'ont pas besoin de mapping (même symbole dans les deux systèmes).
 FMP_TICKER_MAP: dict[str, str] = {
     # Crypto
     "BTC-USD": "BTCUSD",
+    "ETH-USD": "ETHUSD",
     # Metaux precieux
     "GC=F":    "GCUSD",      # Or
     "SI=F":    "SIUSD",      # Argent
@@ -47,10 +49,8 @@ FMP_TICKER_MAP: dict[str, str] = {
     "CL=F":    "USOIL",      # Petrole WTI
     "BZ=F":    "BZUSD",      # Petrole Brent
     "NG=F":    "NATGAS",     # Gaz Naturel
-    # Cereales et soft commodities (disponibilite FMP gratuite limitee)
-    "ZC=F":    "ZCUSD",      # Mais
+    # Cereales
     "ZW=F":    "ZWUSD",      # Ble
-    "CT=F":    "CTUSD",      # Coton
 }
 
 # Tickers qui utilisent /stable/quote au lieu de /stable/profile
@@ -61,7 +61,11 @@ QUOTE_TICKERS = set(FMP_TICKER_MAP.keys()) | {
 
 
 def fetch_price(client: httpx.Client, ticker: str) -> tuple[float | None, float | None]:
-    """Retourne (price, change_pct) depuis FMP ou (None, None) en cas d'erreur."""
+    """Retourne (price, change_pct) depuis FMP ou (None, None) en cas d'erreur ou circuit ouvert."""
+    status, count = check_and_increment()
+    if status == "blocked":
+        return None, None
+
     if ticker in QUOTE_TICKERS:
         url       = FMP_QUOTE
         fmp_sym   = FMP_TICKER_MAP.get(ticker, ticker)
@@ -203,15 +207,16 @@ def seed_live_prices(tickers: list[str]):
     print(f"  Scores : {score_ok} recalculés / {score_skip} ignorés (non-scorables ou sans secteur)")
 
     db.close()
-    total_calls  = ok + ko
-    budget_used  = total_calls * 2          # 2 runs/jour max (9h + 17h30)
-    budget_left  = 250 - budget_used
-    budget_pct   = round(budget_used / 250 * 100)
-    warn         = " ⚠️  ATTENTION : budget dépassé !" if budget_used > 250 else ""
+    total_calls = ok + ko
+    daily_count = get_count()
+    daily_left  = 250 - daily_count
+    daily_pct   = round(daily_count / 250 * 100)
+    warn        = " !! ATTENTION : quota journalier depasse !" if daily_count > 250 else (
+                  " !! Circuit breaker actif ce run." if daily_count >= 245 else (
+                  " -- Alerte envoyée (>85%)." if daily_count >= 210 else ""))
     print(
-        f"\nTermine : {ok} OK / {ko} echecs — {total_calls} calls FMP utilises ce run\n"
-        f"Budget journalier estimé (2 runs) : {budget_used}/250 calls ({budget_pct}%) "
-        f"-> {budget_left} restants{warn}"
+        f"\nTermine : {ok} OK / {ko} echecs — {total_calls} appels FMP ce run\n"
+        f"Compteur journalier : {daily_count}/250 ({daily_pct}%) -> {daily_left} restants{warn}"
     )
 
 
