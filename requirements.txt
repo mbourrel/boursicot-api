@@ -42,3 +42,4 @@ fredapi==0.5.1
 PyJWT[crypto]==2.10.1
 httpx>=0.27
 slowapi==0.1.9
+pytest>=8.0
