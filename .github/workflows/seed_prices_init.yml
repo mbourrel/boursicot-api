@@ -1,0 +1,32 @@
+name: Seed Prices Init
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: 'Tickers à initialiser (ex: ETH-USD CW8.PA). Laisser vide pour tous.'
+        required: false
+        default: ''
+
+jobs:
+  seed-init:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run seed_prices_init
+        env:
+          SQLALCHEMY_DATABASE_URL: ${{ secrets.SQLALCHEMY_DATABASE_URL }}
+        run: python seeds/seed_prices_init.py ${{ github.event.inputs.tickers }}
