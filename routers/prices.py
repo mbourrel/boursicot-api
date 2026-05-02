@@ -20,7 +20,11 @@ def get_prices(
     """
     query = db.query(models.Price).filter(
         models.Price.ticker == ticker,
-        models.Price.interval == interval
+        models.Price.interval == interval,
+        models.Price.open_price.isnot(None),
+        models.Price.high_price.isnot(None),
+        models.Price.low_price.isnot(None),
+        models.Price.close_price.isnot(None),
     ).order_by(models.Price.date.asc())
 
     if limit:
