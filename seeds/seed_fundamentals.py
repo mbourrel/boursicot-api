@@ -131,6 +131,90 @@ def seed_fundamentals():
             except Exception:
                 cashflow_data = None
 
+            # Données de dividendes
+            try:
+                dividends_series = stock.dividends
+                annual_divs = {}
+                if not dividends_series.empty:
+                    for date, amount in dividends_series.items():
+                        year = str(date.year)
+                        annual_divs[year] = annual_divs.get(year, 0) + float(amount)
+
+                sorted_years = sorted(annual_divs.keys(), reverse=True)[:10]
+                annual_vals  = [round(annual_divs[y], 4) for y in sorted_years]
+
+                ex_div_ts  = info.get("exDividendDate")
+                ex_div_str = None
+                if ex_div_ts:
+                    from datetime import datetime, timezone
+                    try:
+                        ex_div_str = datetime.fromtimestamp(ex_div_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+
+                last_div = info.get("lastDividendValue") or None
+                if last_div:
+                    last_div = round(float(last_div), 4)
+
+                last_div_date_ts  = info.get("lastDividendDate")
+                last_div_date_str = None
+                if last_div_date_ts:
+                    from datetime import datetime, timezone
+                    try:
+                        last_div_date_str = datetime.fromtimestamp(last_div_date_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+
+                five_yr = info.get("fiveYearAvgDividendYield") or 0
+                payout  = info.get("payoutRatio") or 0
+
+                # Historique actions en circulation (balance sheet)
+                shares_history = None
+                try:
+                    bs = stock.balance_sheet
+                    if bs is not None and not bs.empty:
+                        candidates = [r for r in bs.index if any(k in str(r) for k in ('Share Issued', 'Ordinary Shares Number', 'Common Stock Equity'))]
+                        if candidates:
+                            row_data = bs.loc[candidates[0]].dropna()
+                            sh_years = [str(d.year) for d in sorted(row_data.index, reverse=True)][:10]
+                            sh_vals  = [round(float(row_data[d]) / 1_000_000, 2) for d in sorted(row_data.index, reverse=True)][:10]
+                            if sh_years:
+                                shares_history = {"years": sh_years, "vals": sh_vals}
+                except Exception:
+                    pass
+
+                # Historique des stock splits
+                stock_splits = None
+                try:
+                    splits = stock.splits
+                    if not splits.empty:
+                        stock_splits = [
+                            {"date": d.strftime("%Y-%m-%d"), "ratio": float(v)}
+                            for d, v in sorted(splits.items(), reverse=True)
+                        ]
+                except Exception:
+                    pass
+
+                dividends_data = {
+                    "dividend_yield":      round((info.get("dividendYield") or 0) * 100, 2),
+                    "dividend_rate":       round(info.get("dividendRate") or 0, 4),
+                    "payout_ratio":        round(float(payout) * 100, 2) if payout else 0,
+                    "five_year_avg_yield": round(float(five_yr), 2),
+                    "ex_dividend_date":    ex_div_str,
+                    "last_dividend_value": last_div,
+                    "last_dividend_date":  last_div_date_str,
+                    "shares_history":      shares_history,
+                    "stock_splits":        stock_splits,
+                    "annual": {
+                        "years": sorted_years,
+                        "items": [
+                            {"name": "Dividende Annuel", "vals": annual_vals, "unit": info.get("currency", "$")}
+                        ] if sorted_years else [],
+                    },
+                }
+            except Exception:
+                dividends_data = None
+
             company = db.query(Company).filter(Company.ticker == ticker).first()
             if company:
                 company.name = name
@@ -154,6 +238,7 @@ def seed_fundamentals():
                 company.balance_sheet_data = balance_sheet_data
                 company.income_stmt_data = income_stmt_data
                 company.cashflow_data = cashflow_data
+                company.dividends_data = dividends_data
             else:
                 company = Company(
                     ticker=ticker, name=name, sector=sector, industry=industry,
@@ -167,6 +252,7 @@ def seed_fundamentals():
                     balance_sheet_data=balance_sheet_data,
                     income_stmt_data=income_stmt_data,
                     cashflow_data=cashflow_data,
+                    dividends_data=dividends_data,
                 )
                 db.add(company)
 
