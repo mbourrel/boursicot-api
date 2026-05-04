@@ -5,7 +5,7 @@ from collections import defaultdict
 import httpx
 import models
 from scoring_logic import compute_scores, is_scorable
-from config import FMP_API_KEY, FMP_V3 as FMP_BASE
+from config import FMP_API_KEY, FMP_V3 as FMP_BASE, EQUITY_RISK_PREMIUM
 
 router = APIRouter(prefix="/api", tags=["fundamentals"])
 
@@ -188,6 +188,94 @@ def get_screener(db: Session = Depends(get_db)):
     return result
 
 
+# Taux sans risque de référence par devise (OAT/Bund/US 10Y approximatifs)
+_RF_FALLBACK = {"USD": 0.045, "EUR": 0.030, "GBP": 0.040, "CAD": 0.035, "JPY": 0.010}
+_RF_BOND_NAME = {"USD": "US 10Y", "EUR": "Bund 10Y", "GBP": "Gilt 10Y"}
+
+
+def _compute_valuation_defaults(company, db) -> dict:
+    # ── 1. Taux sans risque ───────────────────────────────────────────────────
+    currency = (company.currency or "USD").upper()
+    risk_free = _RF_FALLBACK.get(currency, 0.045)
+
+    bond_name = _RF_BOND_NAME.get(currency)
+    if bond_name:
+        try:
+            cache_row = db.query(models.MacroCache).filter(
+                models.MacroCache.cache_key == "macro_rates_v6"
+            ).first()
+            if cache_row and cache_row.data_json:
+                match = next(
+                    (b for b in cache_row.data_json.get("bond_yields", [])
+                     if b.get("name") == bond_name and b.get("rate") is not None),
+                    None,
+                )
+                if match:
+                    risk_free = match["rate"] / 100
+        except Exception:
+            pass
+
+    # ── 2. WACC via CAPM ──────────────────────────────────────────────────────
+    beta = next(
+        (m["val"] for m in (company.risk_market or [])
+         if m.get("name") == "Beta" and m.get("val") is not None),
+        None,
+    )
+    if beta is not None:
+        default_wacc = round(min(0.15, max(0.05, risk_free + beta * EQUITY_RISK_PREMIUM)), 4)
+    else:
+        default_wacc = 0.08
+
+    # ── 3. Croissance FCF (CAGR sur la période disponible) ───────────────────
+    default_growth = 0.05
+    try:
+        cf_items = (company.cashflow_data or {}).get("items") or []
+        fcf_entry = next((x for x in cf_items if x.get("name") == "Free Cash Flow"), None)
+        if fcf_entry:
+            vals = [v for v in (fcf_entry.get("vals") or []) if v is not None and v != 0]
+            if len(vals) >= 2 and vals[-1] > 0 and vals[0] > 0:
+                n = len(vals) - 1
+                cagr = (vals[0] / vals[-1]) ** (1 / n) - 1
+                default_growth = round(min(0.15, max(0.0, cagr)), 4)
+    except Exception:
+        pass
+
+    # ── 4. P/E moyen sectoriel ────────────────────────────────────────────────
+    default_pe = 15.0
+    try:
+        own_per = next(
+            (m["val"] for m in (company.market_analysis or [])
+             if m.get("name") == "PER" and m.get("val") and m["val"] > 0),
+            None,
+        )
+        if company.sector:
+            sector_cos = (
+                db.query(models.Company)
+                .filter(models.Company.sector == company.sector)
+                .all()
+            )
+            pers = [
+                next((m["val"] for m in (c.market_analysis or [])
+                      if m.get("name") == "PER" and m.get("val") and m["val"] > 0), None)
+                for c in sector_cos
+            ]
+            pers = [p for p in pers if p is not None]
+            if pers:
+                default_pe = round(min(50, max(5, sum(pers) / len(pers))), 1)
+            elif own_per is not None:
+                default_pe = round(min(50, max(5, own_per)), 1)
+        elif own_per is not None:
+            default_pe = round(min(50, max(5, own_per)), 1)
+    except Exception:
+        pass
+
+    return {
+        "default_wacc":   default_wacc,
+        "default_growth": default_growth,
+        "default_pe":     default_pe,
+    }
+
+
 @router.get("/fundamentals/{ticker}")
 def get_company(ticker: str, db: Session = Depends(get_db)):
     """Récupère les données fondamentales d'une seule entreprise par son ticker exact.
@@ -227,8 +315,9 @@ def get_company(ticker: str, db: Session = Depends(get_db)):
         prix_item = next((m for m in risk if m.get("name") == "Prix Actuel"), None)
         close_price = prix_item["val"] if prix_item and prix_item.get("val") else None
 
-    result["close_price"]      = close_price
-    result["daily_change_pct"] = daily_change_pct
+    result["close_price"]        = close_price
+    result["daily_change_pct"]   = daily_change_pct
+    result["valuation_defaults"] = _compute_valuation_defaults(company, db)
 
     return result
 
