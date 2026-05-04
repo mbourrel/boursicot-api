@@ -240,7 +240,19 @@ def _compute_valuation_defaults(company, db) -> dict:
     except Exception:
         pass
 
-    # ── 4. P/E moyen sectoriel ────────────────────────────────────────────────
+    # ── 4. Entreprises du secteur (réutilisées pour P/E et EV/EBITDA) ──────────
+    sector_cos = []
+    if company.sector:
+        try:
+            sector_cos = (
+                db.query(models.Company)
+                .filter(models.Company.sector == company.sector)
+                .all()
+            )
+        except Exception:
+            pass
+
+    # ── 5. P/E moyen sectoriel ────────────────────────────────────────────────
     default_pe = 15.0
     try:
         own_per = next(
@@ -248,31 +260,45 @@ def _compute_valuation_defaults(company, db) -> dict:
              if m.get("name") == "PER" and m.get("val") and m["val"] > 0),
             None,
         )
-        if company.sector:
-            sector_cos = (
-                db.query(models.Company)
-                .filter(models.Company.sector == company.sector)
-                .all()
-            )
-            pers = [
-                next((m["val"] for m in (c.market_analysis or [])
-                      if m.get("name") == "PER" and m.get("val") and m["val"] > 0), None)
-                for c in sector_cos
-            ]
-            pers = [p for p in pers if p is not None]
-            if pers:
-                default_pe = round(min(50, max(5, sum(pers) / len(pers))), 1)
-            elif own_per is not None:
-                default_pe = round(min(50, max(5, own_per)), 1)
+        pers = [
+            next((m["val"] for m in (c.market_analysis or [])
+                  if m.get("name") == "PER" and m.get("val") and m["val"] > 0), None)
+            for c in sector_cos
+        ]
+        pers = [p for p in pers if p is not None]
+        if pers:
+            default_pe = round(min(50, max(5, sum(pers) / len(pers))), 1)
         elif own_per is not None:
             default_pe = round(min(50, max(5, own_per)), 1)
     except Exception:
         pass
 
+    # ── 6. EV/EBITDA moyen sectoriel ─────────────────────────────────────────
+    sector_ev_ebitda = 10.0
+    try:
+        own_ev = next(
+            (m["val"] for m in (company.advanced_valuation or [])
+             if m.get("name") == "EV / EBITDA" and m.get("val") and m["val"] > 0),
+            None,
+        )
+        ev_vals = [
+            next((m["val"] for m in (c.advanced_valuation or [])
+                  if m.get("name") == "EV / EBITDA" and m.get("val") and m["val"] > 0), None)
+            for c in sector_cos
+        ]
+        ev_vals = [v for v in ev_vals if v is not None]
+        if ev_vals:
+            sector_ev_ebitda = round(min(30, max(3, sum(ev_vals) / len(ev_vals))), 1)
+        elif own_ev is not None:
+            sector_ev_ebitda = round(min(30, max(3, own_ev)), 1)
+    except Exception:
+        pass
+
     return {
-        "default_wacc":   default_wacc,
-        "default_growth": default_growth,
-        "default_pe":     default_pe,
+        "default_wacc":     default_wacc,
+        "default_growth":   default_growth,
+        "default_pe":       default_pe,
+        "sector_ev_ebitda": sector_ev_ebitda,
     }
 
 
